@@ -474,6 +474,8 @@ export async function deleteUtbAllocation(ctx: ApiCtx): Promise<void> {
   return sendJson(res, 200, { ok: true });
 }
 
+const LEADERBOARD_MODE = process.env.UTB_LEADERBOARD === "named" ? "named" : "teams";
+
 export async function utbLeaderboard(ctx: ApiCtx): Promise<void> {
   const { res, deps, url } = ctx;
   const authz = await requireScopedAdmin(ctx);
@@ -523,7 +525,37 @@ export async function utbLeaderboard(ctx: ApiCtx): Promise<void> {
     const bCost = b.costPerOutcomeUsd ?? Infinity;
     return aCost - bCost || (b.cacheReadShare ?? 0) - (a.cacheReadShare ?? 0) || a.costUsd - b.costUsd;
   });
-  return sendJson(res, 200, { since, scopeId: scope, rows });
+  if (LEADERBOARD_MODE === "named") return sendJson(res, 200, { since, scopeId: scope, mode: "named", rows });
+  const teamsRollup = new Map<
+    string,
+    { members: number; calls: number; totalTokens: number; costUsd: number; produced: number; cacheWeighted: number }
+  >();
+  for (const row of rows) {
+    const key = row.teamId ?? "unassigned";
+    const t = teamsRollup.get(key) ?? { members: 0, calls: 0, totalTokens: 0, costUsd: 0, produced: 0, cacheWeighted: 0 };
+    t.members += 1;
+    t.calls += row.calls;
+    t.totalTokens += row.totalTokens;
+    t.costUsd += row.costUsd;
+    t.produced += row.outcomes
+      ? row.outcomes["code-pushed"] + row.outcomes.artifact + row.outcomes["sent-internal"]
+      : 0;
+    t.cacheWeighted += (row.cacheReadShare ?? 0) * row.totalTokens;
+    teamsRollup.set(key, t);
+  }
+  const teamRows = [...teamsRollup.entries()]
+    .map(([teamId, t]) => ({
+      teamId,
+      members: t.members,
+      calls: t.calls,
+      totalTokens: t.totalTokens,
+      costUsd: t.costUsd,
+      costPerOutcomeUsd: t.produced > 0 ? t.costUsd / t.produced : null,
+      cacheReadShare: t.totalTokens > 0 ? t.cacheWeighted / t.totalTokens : null,
+      outcomesProduced: t.produced,
+    }))
+    .sort((a, b) => (a.costPerOutcomeUsd ?? Infinity) - (b.costPerOutcomeUsd ?? Infinity) || a.costUsd - b.costUsd);
+  return sendJson(res, 200, { since, scopeId: scope, mode: "teams", rows: teamRows });
 }
 
 const AUDIT_EXPORT_LIMIT = 50_000;

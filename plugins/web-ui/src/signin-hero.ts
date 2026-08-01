@@ -38,6 +38,26 @@ function shellGeometry(count: number, inner: number, outer: number): THREE.Buffe
   return geometry;
 }
 
+const DOT_VERTEX = `
+uniform float uSize;
+uniform float uScale;
+void main() {
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = uSize * uScale / -mv.z;
+  gl_Position = projectionMatrix * mv;
+}
+`;
+
+const DOT_FRAGMENT = `
+uniform vec3 uColor;
+uniform float uOpacity;
+void main() {
+  float d = length(gl_PointCoord - vec2(0.5));
+  float a = smoothstep(0.5, 0.08, d);
+  gl_FragColor = vec4(uColor, a * uOpacity);
+}
+`;
+
 export function mountSigninHero(host: HTMLElement): () => void {
   let renderer: THREE.WebGLRenderer;
   try {
@@ -61,26 +81,34 @@ export function mountSigninHero(host: HTMLElement): () => void {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-  const pointMat = (size: number, opacity: number) =>
-    new THREE.PointsMaterial({
-      color: accent,
-      size,
+  const dotMats: THREE.ShaderMaterial[] = [];
+  const pointMat = (size: number, opacity: number) => {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: accent },
+        uSize: { value: size },
+        uScale: { value: 1 },
+        uOpacity: { value: opacity },
+      },
+      vertexShader: DOT_VERTEX,
+      fragmentShader: DOT_FRAGMENT,
       transparent: true,
-      opacity,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      sizeAttenuation: true,
     });
+    dotMats.push(mat);
+    return mat;
+  };
 
-  const latticeGeo = new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1.5, 1));
-  const nucleusGeo = new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(0.5, 0));
-  const vertexGeo = mergeVertices(new THREE.IcosahedronGeometry(1.5, 1));
-  const haloGeo = shellGeometry(200, 2, 3.1);
+  const latticeGeo = new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1.35, 1));
+  const nucleusGeo = new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(0.45, 0));
+  const vertexGeo = mergeVertices(new THREE.IcosahedronGeometry(1.35, 1));
+  const haloGeo = shellGeometry(110, 1.75, 2.55);
 
   const lattice = new THREE.LineSegments(latticeGeo, lineMat(0.15));
-  const nucleus = new THREE.LineSegments(nucleusGeo, lineMat(0.32));
-  const vertexPoints = new THREE.Points(vertexGeo, pointMat(0.05, 0.55));
-  const halo = new THREE.Points(haloGeo, pointMat(0.028, 0.24));
+  const nucleus = new THREE.LineSegments(nucleusGeo, lineMat(0.28));
+  const vertexPoints = new THREE.Points(vertexGeo, pointMat(0.048, 0.34));
+  const halo = new THREE.Points(haloGeo, pointMat(0.026, 0.15));
 
   const core = new THREE.Group();
   core.add(lattice, nucleus, vertexPoints, halo);
@@ -104,10 +132,13 @@ export function mountSigninHero(host: HTMLElement): () => void {
   const resize = () => {
     const w = host.clientWidth || 1;
     const h = host.clientHeight || 1;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(ratio);
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    const scale = (h * ratio) / (2 * Math.tan((camera.fov * Math.PI) / 360));
+    for (const m of dotMats) m.uniforms.uScale.value = scale;
     const halfW = Math.tan((camera.fov * Math.PI) / 360) * camera.position.z * camera.aspect;
     core.position.set(camera.aspect > 1 ? -halfW * 0.42 : 0, 0.1, 0);
     renderer.render(scene, camera);
