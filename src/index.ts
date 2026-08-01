@@ -54,6 +54,7 @@ const server = createServer(built.app, {
   auditLog: built.auditLog,
   errors: built.errors,
   metrics: built.metrics,
+  tokenLedger: built.tokenLedger,
   crons: built.crons,
   brokeredServices: () => built.brokeredTools.map((tool) => tool.service),
   deploymentLayer: built.deploymentLayerStore,

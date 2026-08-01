@@ -250,3 +250,4 @@ export function defaultInteractiveThinkingLevel(model: Pick<PiModel, "api" | "pr
 }
 
 export const DEFAULT_AGENT_INPUT_USD_PER_MTOK = 5;
+export const DEFAULT_AGENT_OUTPUT_USD_PER_MTOK = 15;

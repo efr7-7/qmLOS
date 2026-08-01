@@ -32,6 +32,7 @@ import type { AuditLog } from "../../audit/audit-log.ts";
 import type { SecurityScreener } from "../../security/security-screener.ts";
 import type { RateLimiter } from "../../ratelimit/rate-limiter.ts";
 import type { BudgetTracker } from "../../ratelimit/budget.ts";
+import type { TokenLedger } from "../../ratelimit/token-ledger.ts";
 import type { AwsRoleBroker } from "../../auth/aws-role-broker.ts";
 import type { ControlService } from "../../api/control-service.ts";
 import type { Harness } from "../../harness/harness.ts";
@@ -104,6 +105,7 @@ export interface OrchestratorDeps {
   auditLog: AuditLog;
   rateLimiter: RateLimiter;
   budget?: BudgetTracker;
+  tokenLedger?: TokenLedger;
   maxContextEntries?: number;
   maxContextTokens?: number;
   execTimeoutMs?: number;

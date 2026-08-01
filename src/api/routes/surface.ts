@@ -349,6 +349,38 @@ async function listScopeResources(ctx: ApiCtx): Promise<void> {
   });
 }
 
+const USAGE_DEFAULT_WINDOW_MS = 30 * 86_400_000;
+
+async function getSelfUsage(ctx: ApiCtx): Promise<void> {
+  const { res, deps, url } = ctx;
+  const principalId = url.searchParams.get("principalId");
+  if (!principalId) return sendJson(res, 400, { error: "bad_request", message: "principalId required" });
+  if (!deps.tokenLedger) return sendJson(res, 200, { since: null, totalCostUsd: 0, byModel: [], byPhase: [] });
+  const sinceParam = Number(url.searchParams.get("since") ?? "");
+  const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : Date.now() - USAGE_DEFAULT_WINDOW_MS;
+  const byModel = await deps.tokenLedger.summary("model", { since, principalId });
+  const byPhase = await deps.tokenLedger.summary("phase", { since, principalId });
+  const totalCostUsd = byPhase.reduce((sum, row) => sum + row.costUsd, 0);
+  const totals = byPhase.reduce(
+    (acc, row) => ({
+      input: acc.input + row.input,
+      output: acc.output + row.output,
+      cacheRead: acc.cacheRead + row.cacheRead,
+      cacheWrite: acc.cacheWrite + row.cacheWrite,
+    }),
+    { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  );
+  const inputSide = totals.input + totals.cacheRead + totals.cacheWrite;
+  return sendJson(res, 200, {
+    since,
+    totalCostUsd,
+    totals,
+    cacheReadShare: inputSide > 0 ? totals.cacheRead / inputSide : null,
+    byModel,
+    byPhase,
+  });
+}
+
 async function getSelfMemory(ctx: ApiCtx): Promise<void> {
   const { res, deps, url } = ctx;
   const principalId = url.searchParams.get("principalId");
@@ -1141,6 +1173,7 @@ export const surfaceRoutes: ReadonlyArray<Route<ApiCtx>> = [
   { method: "POST", path: "/v1/conversations/:id", auth: "either", handle: patchAgentConversation },
   { method: "GET", path: "/v1/contexts", auth: "source", handle: listContexts },
   { method: "GET", path: "/v1/scope-resources", auth: "source", handle: listScopeResources },
+  { method: "GET", path: "/v1/usage", auth: "source", handle: getSelfUsage },
   { method: "GET", path: "/v1/memory", auth: "source", handle: getSelfMemory },
   { method: "PUT", path: "/v1/memory", auth: "source", handle: putSelfMemory },
   { method: "GET", path: "/v1/memory/history", auth: "source", handle: getSelfMemoryHistory },

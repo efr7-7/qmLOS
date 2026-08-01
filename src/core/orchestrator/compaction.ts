@@ -15,6 +15,7 @@ import {
   recentEntryCountWithinBudget,
 } from "../../harness/context-compaction.ts";
 import { estimateCostUsd } from "../../ratelimit/budget.ts";
+import { estimatedEntryFromInputTokens } from "../../ratelimit/token-ledger.ts";
 import { errMessage, swallow } from "../../util/errors.ts";
 import { createKeyedQueue, sleep } from "../../util/async.ts";
 import type { OrchestratorDeps } from "./types.ts";
@@ -109,6 +110,16 @@ export function createCompaction(deps: OrchestratorDeps): CompactionContext {
       recordModelCall: (rec) => {
         deps.modelGateway.recordCall({ at: Date.now(), scopeLabel: summaryLabel, ...rec });
         void deps.budget?.record(input.actorId, estimateCostUsd(rec.inputTokens));
+        void deps.tokenLedger?.record(
+          estimatedEntryFromInputTokens({
+            principalId: input.actorId,
+            scopeLabel: summaryLabel,
+            model: rec.model,
+            phase: "compact",
+            inputTokens: rec.inputTokens,
+            sessionId: input.session.id,
+          }),
+        );
       },
     });
     return {

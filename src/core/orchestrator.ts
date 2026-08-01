@@ -40,6 +40,7 @@ import {
 import { renderComputerBlock, renderResidentLoginsBlock, renderConnectedAppsBlock } from "./environment-facts.ts";
 import { PROVIDERS } from "../connectors/oauth.ts";
 import { estimateCostUsd } from "../ratelimit/budget.ts";
+import { entryFromUsage, estimatedEntryFromInputTokens } from "../ratelimit/token-ledger.ts";
 import {
   mintCapabilityToken,
   CAPABILITY_TTL_MS,
@@ -1526,6 +1527,15 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
             recordModelCall: (rec) => {
               deps.modelGateway.recordCall({ at: Date.now(), scopeLabel: scopeId, ...rec });
               void deps.budget?.record(actor.id, estimateCostUsd(rec.inputTokens));
+              void deps.tokenLedger?.record(
+                estimatedEntryFromInputTokens({
+                  principalId: actor.id,
+                  scopeLabel: scopeId,
+                  model: rec.model,
+                  phase: "detect",
+                  inputTokens: rec.inputTokens,
+                }),
+              );
             },
           });
           detectMs = Date.now() - detectStart;
@@ -2058,6 +2068,24 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
               ...(tapeRows.fold ? { fold: tapeRows.fold } : {}),
             };
           }
+          let turnExactMetered = false;
+          let turnUnmeteredInputTokens = 0;
+          let turnUnmeteredModel = "";
+          const flushTurnMeterFallback = () => {
+            if (turnExactMetered || turnUnmeteredInputTokens <= 0) return;
+            void deps.budget?.record(actor.id, estimateCostUsd(turnUnmeteredInputTokens));
+            void deps.tokenLedger?.record(
+              estimatedEntryFromInputTokens({
+                principalId: actor.id,
+                scopeLabel: scopeId,
+                model: turnUnmeteredModel,
+                phase: "turn",
+                inputTokens: turnUnmeteredInputTokens,
+                sessionId: session.id,
+                ...(input.runId ? { runId: input.runId } : {}),
+              }),
+            );
+          };
           return deps.harness.turns.runTurn({
             session,
             ...(input.runId ? { runId: input.runId } : {}),
@@ -2270,16 +2298,31 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
             },
             recordModelCall: (rec) => {
               deps.modelGateway.recordCall({ at: Date.now(), scopeLabel: scopeId, ...rec });
-              void deps.budget?.record(actor.id, estimateCostUsd(rec.inputTokens));
+              turnUnmeteredInputTokens += rec.inputTokens;
+              turnUnmeteredModel = rec.model;
             },
             recordLlmRequest: async (rec) => {
+              if (rec.usage) {
+                turnExactMetered = true;
+                const entry = entryFromUsage({
+                  principalId: actor.id,
+                  scopeLabel: scopeId,
+                  model: rec.model,
+                  phase: "turn",
+                  usage: rec.usage,
+                  sessionId: session.id,
+                  ...(input.runId ? { runId: input.runId } : {}),
+                });
+                void deps.budget?.record(actor.id, entry.costUsd);
+                void deps.tokenLedger?.record(entry);
+              }
               try {
                 await deps.sessions.recordLlmRequest(session.id, { ...rec, scopeLabel: scopeId });
               } catch (err) {
                 console.error("[orchestrator] failed to persist LLM request snapshot:", err);
               }
             },
-          });
+          }).finally(flushTurnMeterFallback);
         };
         const primaryServedTape = !!tapeRows?.serve && history === visibleHistory;
         let result = await runHarnessTurn(turnInput, {

@@ -53,6 +53,8 @@ import { createRateLimiter, type RateLimiter } from "./ratelimit/rate-limiter.ts
 import { createPostgresRateLimiter } from "./ratelimit/postgres-rate-limiter.ts";
 import { createBudgetTracker } from "./ratelimit/budget.ts";
 import { createPostgresBudgetTracker } from "./ratelimit/postgres-budget.ts";
+import { createMemoryTokenLedger, type TokenLedger } from "./ratelimit/token-ledger.ts";
+import { createPostgresTokenLedger } from "./ratelimit/postgres-token-ledger.ts";
 import { createCronStore, type CronStore } from "./cron/cron-store.ts";
 import { createDeliveryStore, type DeliveryStore } from "./delivery/delivery-store.ts";
 import { createPostgresDeliveryStore } from "./delivery/postgres-delivery-store.ts";
@@ -328,6 +330,7 @@ export interface BuiltApp {
   rateLimiter: RateLimiter;
   errors: ErrorLog;
   metrics: MetricsSink;
+  tokenLedger: TokenLedger;
   crons: CronStore;
   credentialUsage: CredentialUsageSink;
   egressAudit: EgressAuditSink;
@@ -528,6 +531,9 @@ export function buildApp(
     config.databaseUrl && (config.budgetUsdPerWindow !== undefined || config.orgBudgetUsdPerWindow !== undefined)
       ? createPostgresBudgetTracker(config.databaseUrl, budgetOpts)
       : createBudgetTracker(budgetOpts);
+  const tokenLedger = config.databaseUrl
+    ? createPostgresTokenLedger(config.databaseUrl)
+    : createMemoryTokenLedger();
   const resolution = createResolutionService(config.orgId, configStore, acl);
 
   const workspace = createLocalWorkspaceStore(config.dataDir);
@@ -896,6 +902,7 @@ export function buildApp(
     auditLog,
     rateLimiter,
     budget,
+    tokenLedger,
     harness,
     memory,
     deploy: deployService,
@@ -1392,6 +1399,7 @@ export function buildApp(
     rateLimiter,
     errors,
     metrics,
+    tokenLedger,
     crons,
     credentialUsage,
     egressAudit,

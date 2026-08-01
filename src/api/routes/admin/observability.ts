@@ -349,3 +349,40 @@ export async function listAdminAudit(ctx: ApiCtx): Promise<void> {
   }));
   return sendJson(res, 200, { scopeId: scope, events });
 }
+
+const UTB_GROUPS = ["principal", "scope", "model", "phase"] as const;
+const UTB_DEFAULT_WINDOW_MS = 30 * 86_400_000;
+
+export async function utbSummary(ctx: ApiCtx): Promise<void> {
+  const { res, deps, url } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  const { actor, scope } = authz;
+  audit(deps, { principalId: actor.id, action: "utb.read", resource: "token-ledger", scopeLabel: scope });
+  if (!deps.tokenLedger) return sendJson(res, 200, { groups: {}, since: null });
+  const orgWide = parseScopeId(scope).kind === "org";
+  const sinceParam = Number(url.searchParams.get("since") ?? "");
+  const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : Date.now() - UTB_DEFAULT_WINDOW_MS;
+  const base = { since, ...(orgWide ? {} : { scopeLabel: scope }) };
+  const groups: Record<string, unknown> = {};
+  for (const groupBy of UTB_GROUPS) {
+    const rows = await deps.tokenLedger.summary(groupBy, base);
+    groups[groupBy] = rows.map((row) => {
+      const totalTokens = row.input + row.output + row.cacheRead + row.cacheWrite;
+      const inputSide = row.input + row.cacheRead + row.cacheWrite;
+      return {
+        ...row,
+        totalTokens,
+        effectiveUsdPerMtok: totalTokens > 0 ? (row.costUsd / totalTokens) * 1_000_000 : null,
+        cacheReadShare: inputSide > 0 ? row.cacheRead / inputSide : null,
+        estimatedShare: row.calls > 0 ? row.estimatedCalls / row.calls : 0,
+      };
+    });
+  }
+  const totalCostUsd = ((groups.phase as Array<{ costUsd: number }>) ?? []).reduce((sum, row) => sum + row.costUsd, 0);
+  const headcount = orgWide ? ((await deps.directory?.list()) ?? []).length : null;
+  const windowDays = (Date.now() - since) / 86_400_000;
+  const pepmUsd =
+    headcount && headcount > 0 && windowDays > 0 ? (totalCostUsd / headcount) * (30 / windowDays) : null;
+  return sendJson(res, 200, { since, scopeId: scope, orgWide, totalCostUsd, headcount, pepmUsd, groups });
+}

@@ -3,6 +3,7 @@ import type { ScopeId } from "../../types.ts";
 import type { TurnOrigin } from "../turn-origin.ts";
 import { runShadowScreen, type SecurityScreenHook } from "../../security/security-screener.ts";
 import { UNSCREENED_REASON, type SecurityScreenVerdict } from "../../security/security-posture.ts";
+import { entryFromUsage, estimatedEntryFromInputTokens } from "../../ratelimit/token-ledger.ts";
 import { estimateCostUsd } from "../../ratelimit/budget.ts";
 import type { HarnessLlmRequestRecord } from "../../harness/harness.ts";
 import { swallowAs } from "../../util/errors.ts";
@@ -39,16 +40,54 @@ export function createSecurityClassifier(deps: OrchestratorDeps): SecurityClassi
       let timer: ReturnType<typeof setTimeout> | undefined;
       let proxySettled = false;
       const requestId = context.requestId ?? randomUUID();
-      const modelScreen = () =>
-        deps.harness.models.screenSecurity?.({
-          payload,
-          signal: abort.signal,
-          recordModelCall: (rec) => {
-            deps.modelGateway.recordCall({ at: Date.now(), scopeLabel, ...rec });
-            void deps.budget?.record(actorId, estimateCostUsd(rec.inputTokens));
-          },
-          ...(recordLlmRequest ? { recordLlmRequest } : {}),
+      let meteredExact = false;
+      let unmeteredInputTokens = 0;
+      let unmeteredModel = "";
+      const meterScreenRequest = (rec: HarnessLlmRequestRecord): void => {
+        if (!rec.usage) return;
+        meteredExact = true;
+        const entry = entryFromUsage({
+          principalId: actorId,
+          scopeLabel,
+          model: rec.model,
+          phase: "screen",
+          usage: rec.usage,
         });
+        void deps.budget?.record(actorId, entry.costUsd);
+        void deps.tokenLedger?.record(entry);
+      };
+      const meterScreenFallback = (): void => {
+        if (meteredExact || unmeteredInputTokens <= 0) return;
+        void deps.budget?.record(actorId, estimateCostUsd(unmeteredInputTokens));
+        void deps.tokenLedger?.record(
+          estimatedEntryFromInputTokens({
+            principalId: actorId,
+            scopeLabel,
+            model: unmeteredModel,
+            phase: "screen",
+            inputTokens: unmeteredInputTokens,
+          }),
+        );
+      };
+      const modelScreen = async () => {
+        try {
+          return await deps.harness.models.screenSecurity?.({
+            payload,
+            signal: abort.signal,
+            recordModelCall: (rec) => {
+              deps.modelGateway.recordCall({ at: Date.now(), scopeLabel, ...rec });
+              unmeteredInputTokens += rec.inputTokens;
+              unmeteredModel = rec.model;
+            },
+            recordLlmRequest: async (rec) => {
+              meterScreenRequest(rec);
+              await recordLlmRequest?.(rec);
+            },
+          });
+        } finally {
+          meterScreenFallback();
+        }
+      };
       const recordProxyError = () => {
         if (!deps.securityScreener || proxySettled) return;
         proxySettled = true;
