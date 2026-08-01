@@ -58,6 +58,10 @@ export function createPostgresTokenLedger(connectionString: string): TokenLedger
       params.push(opts.scopeLabel);
       conds.push(`scope_label = $${params.length}`);
     }
+    if (opts.runId !== undefined) {
+      params.push(opts.runId);
+      conds.push(`run_id = $${params.length}`);
+    }
     return { clause: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
   }
 

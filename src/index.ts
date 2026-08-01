@@ -57,6 +57,7 @@ const server = createServer(built.app, {
   tokenLedger: built.tokenLedger,
   teams: built.teams,
   allocations: built.allocations,
+  runOutcomes: built.runOutcomes,
   crons: built.crons,
   brokeredServices: () => built.brokeredTools.map((tool) => tool.service),
   deploymentLayer: built.deploymentLayerStore,

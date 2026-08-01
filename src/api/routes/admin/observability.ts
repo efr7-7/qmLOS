@@ -490,11 +490,18 @@ export async function utbLeaderboard(ctx: ApiCtx): Promise<void> {
       .map((m) => [m.principalId!, (m as { name?: string | null }).name ?? null] as const),
   );
   const summaries = await deps.tokenLedger.summary("principal", { since });
+  const outcomeTotals = new Map(
+    ((await deps.runOutcomes?.summary({ since }).catch(() => [])) ?? []).map((t) => [t.principalId, t] as const),
+  );
   const rows = await Promise.all(
     summaries.map(async (row) => {
       const inputSide = row.input + row.cacheRead + row.cacheWrite;
       const totalTokens = inputSide + row.output;
       const teamId = (await deps.teams?.teamOf(row.key).catch(() => null)) ?? null;
+      const outcomes = outcomeTotals.get(row.key) ?? null;
+      const produced = outcomes
+        ? outcomes.byOutcome["code-pushed"] + outcomes.byOutcome.artifact + outcomes.byOutcome["sent-internal"]
+        : 0;
       return {
         principalId: row.key,
         name: names.get(row.key) ?? null,
@@ -505,9 +512,16 @@ export async function utbLeaderboard(ctx: ApiCtx): Promise<void> {
         effectiveUsdPerMtok: totalTokens > 0 ? (row.costUsd / totalTokens) * 1_000_000 : null,
         cacheReadShare: inputSide > 0 ? row.cacheRead / inputSide : null,
         estimatedShare: row.calls > 0 ? row.estimatedCalls / row.calls : 0,
+        outcomes: outcomes?.byOutcome ?? null,
+        outcomeRuns: outcomes?.runs ?? 0,
+        costPerOutcomeUsd: produced > 0 ? row.costUsd / produced : null,
       };
     }),
   );
-  rows.sort((a, b) => (b.cacheReadShare ?? 0) - (a.cacheReadShare ?? 0) || a.costUsd - b.costUsd);
+  rows.sort((a, b) => {
+    const aCost = a.costPerOutcomeUsd ?? Infinity;
+    const bCost = b.costPerOutcomeUsd ?? Infinity;
+    return aCost - bCost || (b.cacheReadShare ?? 0) - (a.cacheReadShare ?? 0) || a.costUsd - b.costUsd;
+  });
   return sendJson(res, 200, { since, scopeId: scope, rows });
 }

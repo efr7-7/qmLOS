@@ -17,6 +17,7 @@ import type { MetricsSink } from "../admin/metrics-sink.ts";
 import type { TokenLedger } from "../ratelimit/token-ledger.ts";
 import type { TeamStore } from "../directory/team-store.ts";
 import type { AllocationStore } from "../ratelimit/allocation-store.ts";
+import type { RunOutcomeStore } from "../runs/run-outcome.ts";
 import type { RunStore } from "../runs/run-store.ts";
 import type { WorkspaceStore } from "../workspace/workspace-store.ts";
 import type { FileArtifactStore } from "../files/file-artifact-store.ts";
@@ -95,6 +96,7 @@ export interface ServerDeps {
   tokenLedger?: TokenLedger;
   teams?: TeamStore;
   allocations?: AllocationStore;
+  runOutcomes?: RunOutcomeStore;
   crons?: CronStore;
   runs?: RunStore;
   workspace?: WorkspaceStore;

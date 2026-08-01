@@ -240,7 +240,8 @@ export async function brokerGitHttp(ctx: BaseCtx): Promise<void> {
   ctx.deps.auditLog?.record({
     at: Date.now(),
     principalId: claims.actorId,
-    action: "credential.git.use",
+    action:
+      method === "POST" && upstreamPath.includes("git-receive-pack") ? "credential.git.push" : "credential.git.use",
     resource: slug,
     scopeLabel: claims.scopeId,
     status: "ok",

@@ -38,6 +38,7 @@ export interface TokenLedgerQuery {
   until?: number;
   principalId?: string;
   scopeLabel?: string;
+  runId?: string;
   limit?: number;
 }
 
@@ -123,6 +124,7 @@ function matches(entry: TokenLedgerEntry, opts: TokenLedgerQuery): boolean {
   if (opts.until !== undefined && entry.at >= opts.until) return false;
   if (opts.principalId !== undefined && entry.principalId !== opts.principalId) return false;
   if (opts.scopeLabel !== undefined && entry.scopeLabel !== opts.scopeLabel) return false;
+  if (opts.runId !== undefined && entry.runId !== opts.runId) return false;
   return true;
 }
 

@@ -61,6 +61,8 @@ import { createMemoryAllocationStore, type AllocationStore } from "./ratelimit/a
 import { createPostgresAllocationStore } from "./ratelimit/postgres-allocation-store.ts";
 import { createAllocationBudgetTracker } from "./ratelimit/allocation-budget.ts";
 import { otelExporterOptionsFromEnv, wrapLedgerWithOtelExport } from "./ratelimit/otel-ledger-exporter.ts";
+import { classifyRun, createMemoryRunOutcomeStore, type RunOutcomeStore } from "./runs/run-outcome.ts";
+import { createPostgresRunOutcomeStore } from "./runs/postgres-run-outcome-store.ts";
 import { createCronStore, type CronStore } from "./cron/cron-store.ts";
 import { createDeliveryStore, type DeliveryStore } from "./delivery/delivery-store.ts";
 import { createPostgresDeliveryStore } from "./delivery/postgres-delivery-store.ts";
@@ -339,6 +341,7 @@ export interface BuiltApp {
   tokenLedger: TokenLedger;
   teams: TeamStore;
   allocations: AllocationStore;
+  runOutcomes: RunOutcomeStore;
   crons: CronStore;
   credentialUsage: CredentialUsageSink;
   egressAudit: EgressAuditSink;
@@ -549,6 +552,9 @@ export function buildApp(
     ? createPostgresAllocationStore(config.databaseUrl)
     : createMemoryAllocationStore();
   const enforcedBudget = createAllocationBudgetTracker(budget, { teams, allocations, ledger: tokenLedger });
+  const runOutcomes = config.databaseUrl
+    ? createPostgresRunOutcomeStore(config.databaseUrl)
+    : createMemoryRunOutcomeStore();
   const resolution = createResolutionService(config.orgId, configStore, acl);
 
   const workspace = createLocalWorkspaceStore(config.dataDir);
@@ -1137,6 +1143,29 @@ export function buildApp(
   });
   runs.onTerminal((run) => {
     void (async () => {
+      if (run.status !== "done" || !run.result || run.result.status !== "ok") return;
+      const actorId = run.request.actor.id;
+      const since = run.startedAt ?? run.createdAt;
+      const pushes = await auditLog.tail({ limit: 200, action: "credential.git.push", since });
+      const gitPushed = pushes.some((event) => event.principalId === actorId);
+      const spend = await tokenLedger.summary("phase", { runId: run.id });
+      const conversation = run.request.conversation;
+      const scopeLabel =
+        conversation.kind === "dm"
+          ? scopeId("personal", actorId)
+          : scopeId(conversation.kind, conversation.channelRef ?? conversation.threadRef);
+      await runOutcomes.record({
+        runId: run.id,
+        principalId: actorId,
+        scopeLabel,
+        outcome: classifyRun(run, { gitPushed }),
+        costUsd: spend.reduce((sum, row) => sum + row.costUsd, 0),
+        at: run.finishedAt ?? Date.now(),
+      });
+    })().catch(swallowAs("run-outcome: classify", undefined));
+  });
+  runs.onTerminal((run) => {
+    void (async () => {
       const uuid = (await sessions.getByThread(run.sessionId))?.id;
       const rows = uuid ? await approvals.entries() : [];
       const awaiting = rows.some(([, r]) => r.sessionId === uuid && r.blocksInput !== false);
@@ -1417,6 +1446,7 @@ export function buildApp(
     tokenLedger,
     teams,
     allocations,
+    runOutcomes,
     crons,
     credentialUsage,
     egressAudit,
