@@ -18,6 +18,7 @@ import {
   putUtbAllocation,
   putUtbTeam,
   utbAllocations,
+  utbLeaderboard,
   utbSummary,
   utbTeams,
 } from "./admin/observability.ts";
@@ -79,6 +80,7 @@ const routes: ReadonlyArray<Route<ApiCtx>> = [
   { method: "GET", path: "/v1/admin/retention", auth: "either", handle: retention },
   { method: "GET", path: "/v1/admin/metrics", auth: "either", handle: metrics },
   { method: "GET", path: "/v1/admin/utb", auth: "either", handle: utbSummary },
+  { method: "GET", path: "/v1/admin/utb/leaderboard", auth: "either", handle: utbLeaderboard },
   { method: "GET", path: "/v1/admin/utb/teams", auth: "either", handle: utbTeams },
   { method: "PUT", path: "/v1/admin/utb/teams", auth: "either", handle: putUtbTeam },
   { method: "DELETE", path: "/v1/admin/utb/teams/:id", auth: "either", handle: deleteUtbTeam },

@@ -473,3 +473,41 @@ export async function deleteUtbAllocation(ctx: ApiCtx): Promise<void> {
   audit(deps, { principalId: authz.actor.id, action: "utb.allocations.delete", resource: id, scopeLabel: authz.scope });
   return sendJson(res, 200, { ok: true });
 }
+
+export async function utbLeaderboard(ctx: ApiCtx): Promise<void> {
+  const { res, deps, url } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  const { actor, scope } = authz;
+  audit(deps, { principalId: actor.id, action: "utb.leaderboard.read", resource: "token-ledger", scopeLabel: scope });
+  if (!deps.tokenLedger) return sendJson(res, 200, { since: null, rows: [] });
+  const sinceParam = Number(url.searchParams.get("since") ?? "");
+  const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : Date.now() - UTB_DEFAULT_WINDOW_MS;
+  const members = (await deps.directory?.list().catch(() => [])) ?? [];
+  const names = new Map(
+    members
+      .filter((m) => m.principalId)
+      .map((m) => [m.principalId!, (m as { name?: string | null }).name ?? null] as const),
+  );
+  const summaries = await deps.tokenLedger.summary("principal", { since });
+  const rows = await Promise.all(
+    summaries.map(async (row) => {
+      const inputSide = row.input + row.cacheRead + row.cacheWrite;
+      const totalTokens = inputSide + row.output;
+      const teamId = (await deps.teams?.teamOf(row.key).catch(() => null)) ?? null;
+      return {
+        principalId: row.key,
+        name: names.get(row.key) ?? null,
+        teamId,
+        calls: row.calls,
+        totalTokens,
+        costUsd: row.costUsd,
+        effectiveUsdPerMtok: totalTokens > 0 ? (row.costUsd / totalTokens) * 1_000_000 : null,
+        cacheReadShare: inputSide > 0 ? row.cacheRead / inputSide : null,
+        estimatedShare: row.calls > 0 ? row.estimatedCalls / row.calls : 0,
+      };
+    }),
+  );
+  rows.sort((a, b) => (b.cacheReadShare ?? 0) - (a.cacheReadShare ?? 0) || a.costUsd - b.costUsd);
+  return sendJson(res, 200, { since, scopeId: scope, rows });
+}

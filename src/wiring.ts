@@ -60,6 +60,7 @@ import { createPostgresTeamStore } from "./directory/postgres-team-store.ts";
 import { createMemoryAllocationStore, type AllocationStore } from "./ratelimit/allocation-store.ts";
 import { createPostgresAllocationStore } from "./ratelimit/postgres-allocation-store.ts";
 import { createAllocationBudgetTracker } from "./ratelimit/allocation-budget.ts";
+import { otelExporterOptionsFromEnv, wrapLedgerWithOtelExport } from "./ratelimit/otel-ledger-exporter.ts";
 import { createCronStore, type CronStore } from "./cron/cron-store.ts";
 import { createDeliveryStore, type DeliveryStore } from "./delivery/delivery-store.ts";
 import { createPostgresDeliveryStore } from "./delivery/postgres-delivery-store.ts";
@@ -538,9 +539,11 @@ export function buildApp(
     config.databaseUrl && (config.budgetUsdPerWindow !== undefined || config.orgBudgetUsdPerWindow !== undefined)
       ? createPostgresBudgetTracker(config.databaseUrl, budgetOpts)
       : createBudgetTracker(budgetOpts);
-  const tokenLedger = config.databaseUrl
+  const baseTokenLedger = config.databaseUrl
     ? createPostgresTokenLedger(config.databaseUrl)
     : createMemoryTokenLedger();
+  const otelOptions = otelExporterOptionsFromEnv(process.env);
+  const tokenLedger = otelOptions ? wrapLedgerWithOtelExport(baseTokenLedger, otelOptions).ledger : baseTokenLedger;
   const teams = config.databaseUrl ? createPostgresTeamStore(config.databaseUrl) : createMemoryTeamStore();
   const allocations = config.databaseUrl
     ? createPostgresAllocationStore(config.databaseUrl)
