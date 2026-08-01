@@ -260,10 +260,34 @@ function devBanner(user: string) {
 
 const GATE_FIELD = asciiField(200, 90);
 
+let heroCleanup: (() => void) | null = null;
+let heroToken = 0;
+
+function mountSigninHalo(): void {
+  const host = (appEl as HTMLElement).querySelector<HTMLElement>(".signin-halo");
+  if (!host || host.childElementCount > 0) return;
+  const token = ++heroToken;
+  void import("./signin-hero")
+    .then((mod) => {
+      if (token !== heroToken || !host.isConnected) return;
+      heroCleanup = mod.mountSigninHero(host);
+    })
+    .catch(() => undefined);
+}
+
+function disposeSigninHalo(): void {
+  heroToken++;
+  if (heroCleanup) {
+    heroCleanup();
+    heroCleanup = null;
+  }
+}
+
 function gateShell(body: unknown) {
   return html`
     <div class="signin">
       <pre class="signin-field" aria-hidden="true">${GATE_FIELD}</pre>
+      <div class="signin-halo" aria-hidden="true"></div>
       <div class="signin-stage">
         <div class="signin-hero" aria-hidden="true">
           <div class="signin-display">${brandName()}</div>
@@ -428,6 +452,7 @@ export function renderAuthGate(gate: AuthGate): void {
     }
   })();
   render(body, appEl as HTMLElement);
+  mountSigninHalo();
 }
 
 function gateFor(mode: AuthMode, reason: "unauthenticated" | "not_allowed" | undefined): AuthGate {
@@ -436,6 +461,7 @@ function gateFor(mode: AuthMode, reason: "unauthenticated" | "not_allowed" | und
 }
 
 export function mountShell(): void {
+  disposeSigninHalo();
   if (embedMode) {
     render(
       html`<div class="layout embed-layout">

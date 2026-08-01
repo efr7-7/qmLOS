@@ -10,6 +10,7 @@ import { brokerGitHttp, GIT_HTTP_BROKER_PREFIX } from "../git-http-broker.ts";
 import { keychainRoutes } from "./keychain.ts";
 import { secretDropRoutes } from "./secret-drop.ts";
 import { adminRoutes } from "./admin.ts";
+import { ingestRoutes } from "./ingest.ts";
 import { skillPackRoutes } from "./skill-packs.ts";
 import { surfaceRoutes } from "./surface.ts";
 import { cronRoutes } from "./crons.ts";
@@ -47,6 +48,7 @@ export const apiRoutes: ReadonlyArray<Route<ApiCtx>> = [
   ...secretDropRoutes,
   ...connectorRoutes,
   ...adminRoutes,
+  ...ingestRoutes,
   ...skillPackRoutes,
   ...surfaceRoutes,
   ...projectRoutes,

@@ -3,7 +3,7 @@ import type { LlmCallUsage } from "../sessions/session-store.ts";
 import { DEFAULT_AGENT_OUTPUT_USD_PER_MTOK } from "../model/pi-models.ts";
 import { estimateCostUsd } from "./budget.ts";
 
-export type TokenLedgerPhase = "turn" | "detect" | "compact" | "screen" | "other";
+export type TokenLedgerPhase = "turn" | "detect" | "compact" | "screen" | "external" | "other";
 
 export interface TokenLedgerEntry {
   at: number;
@@ -13,6 +13,7 @@ export interface TokenLedgerEntry {
   runId?: string;
   model: string;
   phase: TokenLedgerPhase;
+  source?: string;
   input: number;
   output: number;
   cacheRead: number;
@@ -31,7 +32,7 @@ export interface TokenLedgerTotals {
   estimatedCalls: number;
 }
 
-export type TokenLedgerGroupBy = "principal" | "scope" | "model" | "phase";
+export type TokenLedgerGroupBy = "principal" | "scope" | "model" | "phase" | "source";
 
 export interface TokenLedgerQuery {
   since?: number;
@@ -116,6 +117,7 @@ function groupKey(entry: TokenLedgerEntry, groupBy: TokenLedgerGroupBy): string 
   if (groupBy === "principal") return entry.principalId;
   if (groupBy === "scope") return entry.scopeLabel;
   if (groupBy === "model") return entry.model;
+  if (groupBy === "source") return entry.source ?? "los";
   return entry.phase;
 }
 

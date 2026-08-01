@@ -525,3 +525,96 @@ export async function utbLeaderboard(ctx: ApiCtx): Promise<void> {
   });
   return sendJson(res, 200, { since, scopeId: scope, rows });
 }
+
+const AUDIT_EXPORT_LIMIT = 50_000;
+
+export async function auditExport(ctx: ApiCtx): Promise<void> {
+  const { res, deps, url } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  const { actor, scope } = authz;
+  audit(deps, { principalId: actor.id, action: "audit.export", resource: "audit", scopeLabel: scope });
+  const sinceParam = Number(url.searchParams.get("since") ?? "");
+  const untilParam = Number(url.searchParams.get("until") ?? "");
+  const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : 0;
+  const until = Number.isFinite(untilParam) && untilParam > 0 ? untilParam : Number.MAX_SAFE_INTEGER;
+  const orgWide = parseScopeId(scope).kind === "org";
+  const events = await deps.auditLog!.tail({
+    limit: AUDIT_EXPORT_LIMIT,
+    ...(orgWide ? {} : { scopeLabel: scope }),
+    ...(since ? { since } : {}),
+  });
+  res.writeHead(200, {
+    "content-type": "application/x-ndjson; charset=utf-8",
+    "content-disposition": `attachment; filename="los-audit-${since || "all"}.ndjson"`,
+  });
+  for (const event of events) {
+    if (event.at >= until) continue;
+    res.write(JSON.stringify(event) + "\n");
+  }
+  res.end();
+}
+
+function csvCell(value: unknown): string {
+  const s = String(value ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+export async function utbChargeback(ctx: ApiCtx): Promise<void> {
+  const { res, deps, url } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  const { actor, scope } = authz;
+  audit(deps, { principalId: actor.id, action: "utb.chargeback.export", resource: "token-ledger", scopeLabel: scope });
+  if (!deps.tokenLedger) return sendJson(res, 404, { error: "not_found" });
+  const sinceParam = Number(url.searchParams.get("since") ?? "");
+  const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : Date.now() - UTB_DEFAULT_WINDOW_MS;
+  const rows = await deps.tokenLedger.summary("principal", { since });
+  const lines = ["team,principal,calls,input_tokens,output_tokens,cache_read,cache_write,cost_usd,estimated_calls"];
+  for (const row of rows) {
+    const teamId = (await deps.teams?.teamOf(row.key).catch(() => null)) ?? "";
+    lines.push(
+      [teamId, row.key, row.calls, row.input, row.output, row.cacheRead, row.cacheWrite, row.costUsd.toFixed(6), row.estimatedCalls]
+        .map(csvCell)
+        .join(","),
+    );
+  }
+  res.writeHead(200, {
+    "content-type": "text/csv; charset=utf-8",
+    "content-disposition": `attachment; filename="los-chargeback-${new Date(since).toISOString().slice(0, 10)}.csv"`,
+  });
+  res.end(lines.join("\n") + "\n");
+}
+
+export async function fleet(ctx: ApiCtx): Promise<void> {
+  const { res, deps, url } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  const { actor, scope } = authz;
+  audit(deps, { principalId: actor.id, action: "fleet.read", resource: "fleet", scopeLabel: scope });
+  if (!deps.tokenLedger) return sendJson(res, 200, { since: null, agents: [] });
+  const sinceParam = Number(url.searchParams.get("since") ?? "");
+  const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : Date.now() - UTB_DEFAULT_WINDOW_MS;
+  const scopes = await deps.tokenLedger.summary("scope", { since });
+  const agents = await Promise.all(
+    scopes.map(async (row) => {
+      const parsed = parseScopeId(row.key as ScopeId);
+      const latest = await deps.tokenLedger!.list({ since, scopeLabel: row.key, limit: 1 });
+      const totalTokens = row.input + row.output + row.cacheRead + row.cacheWrite;
+      return {
+        scope: row.key,
+        kind: parsed.kind,
+        calls: row.calls,
+        totalTokens,
+        costUsd: row.costUsd,
+        estimatedShare: row.calls > 0 ? row.estimatedCalls / row.calls : 0,
+        lastActiveAt: latest[0]?.at ?? null,
+        lastModel: latest[0]?.model ?? null,
+        lastSource: latest[0]?.source ?? "los",
+      };
+    }),
+  );
+  agents.sort((a, b) => b.costUsd - a.costUsd);
+  const bySource = await deps.tokenLedger.summary("source", { since });
+  return sendJson(res, 200, { since, scopeId: scope, sandboxBackend: deps.sandboxBackend ?? null, bySource, agents });
+}

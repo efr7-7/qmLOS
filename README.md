@@ -2,6 +2,8 @@
 
 **The operating system for your AI workforce.**
 
+![LOS](./docs/screenshots/web-signin-dark.png)
+
 LOS gives every person in your company their own AI worker — with its own memory, files,
 credentials, schedule, and computer — and gives the company one place to run, govern, and
 meter all of them. In Slack and on the web. Self-hosted, MIT-licensed, in your own cloud.

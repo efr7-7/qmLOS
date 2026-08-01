@@ -14,6 +14,7 @@ const GROUP_COLUMNS: Record<TokenLedgerGroupBy, string> = {
   scope: "scope_label",
   model: "model",
   phase: "phase",
+  source: "COALESCE(source, 'los')",
 };
 
 export function createPostgresTokenLedger(connectionString: string): TokenLedger {
@@ -37,6 +38,7 @@ export function createPostgresTokenLedger(connectionString: string): TokenLedger
     `CREATE INDEX IF NOT EXISTS token_ledger_by_principal_at ON token_ledger(principal_id, at)`,
     `CREATE INDEX IF NOT EXISTS token_ledger_by_scope_at ON token_ledger(scope_label, at)`,
     `CREATE INDEX IF NOT EXISTS token_ledger_by_at ON token_ledger(at)`,
+    `ALTER TABLE token_ledger ADD COLUMN IF NOT EXISTS source TEXT`,
   ]);
 
   function where(opts: TokenLedgerQuery): { clause: string; params: unknown[] } {
@@ -71,8 +73,8 @@ export function createPostgresTokenLedger(connectionString: string): TokenLedger
         await q(
           `INSERT INTO token_ledger(
              at, principal_id, scope_label, session_id, run_id, model, phase,
-             input_tokens, output_tokens, cache_read, cache_write, cost_usd, estimated
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+             input_tokens, output_tokens, cache_read, cache_write, cost_usd, estimated, source
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
           [
             entry.at,
             entry.principalId,
@@ -87,6 +89,7 @@ export function createPostgresTokenLedger(connectionString: string): TokenLedger
             entry.cacheWrite,
             entry.costUsd,
             entry.estimated,
+            entry.source ?? null,
           ],
         );
       } catch (err) {
@@ -126,7 +129,7 @@ export function createPostgresTokenLedger(connectionString: string): TokenLedger
       params.push(opts.limit ?? 1_000);
       const rows = await q(
         `SELECT at, principal_id, scope_label, session_id, run_id, model, phase,
-                input_tokens, output_tokens, cache_read, cache_write, cost_usd, estimated
+                input_tokens, output_tokens, cache_read, cache_write, cost_usd, estimated, source
          FROM token_ledger ${clause}
          ORDER BY at DESC
          LIMIT $${params.length}`,
@@ -146,6 +149,7 @@ export function createPostgresTokenLedger(connectionString: string): TokenLedger
         cacheWrite: Number(row.cache_write),
         costUsd: Number(row.cost_usd),
         estimated: Boolean(row.estimated),
+        ...(row.source ? { source: String(row.source) } : {}),
       }));
     },
   };
