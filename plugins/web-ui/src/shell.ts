@@ -28,7 +28,7 @@ import {
 } from "./core-bridge";
 import { applyRuntimeOptions } from "./model-options";
 import { errMessage, swallow } from "../../chassis/src/errors";
-import { brandMark, brandName, icon, initials } from "./ui";
+import { asciiField, brandMark, brandName, icon, initials } from "./ui";
 import {
   chatState,
   markConnectorConnected,
@@ -258,15 +258,24 @@ function devBanner(user: string) {
   `;
 }
 
+const GATE_FIELD = asciiField(200, 90);
+
 function gateShell(body: unknown) {
   return html`
     <div class="signin">
-      <div class="signin-panel">
-        <div class="signin-brand">
-          ${brandMark()}<span>${brandName()}</span>
-          ${authMode === "dev" ? html`<span class="dev-chip">DEV</span>` : nothing}
+      <pre class="signin-field" aria-hidden="true">${GATE_FIELD}</pre>
+      <div class="signin-stage">
+        <div class="signin-hero" aria-hidden="true">
+          <div class="signin-display">${brandName()}</div>
+          <div class="signin-kicker"><span class="signin-kicker-mark"></span>OPERATING SYSTEM FOR THE AI WORKFORCE</div>
         </div>
-        ${body}
+        <div class="signin-panel">
+          <div class="signin-brand">
+            ${brandMark()}<span>${brandName()}</span>
+            ${authMode === "dev" ? html`<span class="dev-chip">DEV</span>` : nothing}
+          </div>
+          ${body}
+        </div>
       </div>
     </div>
   `;
@@ -451,7 +460,13 @@ export function mountShell(): void {
       <div class="layout ${sidebarOpen ? "" : "sidebar-closed"} ${banner ? "bannered" : ""}">
         <aside class="sidebar" aria-label="Navigation" @keydown=${onSidebarKeydown}>
           <div class="brand">
-            <div class="brand-lockup">${brandMark()}<span class="brand-name">${brandName()}</span></div>
+            <div class="brand-lockup">
+              ${brandMark()}
+              <span class="brand-text">
+                <span class="brand-name">${brandName()}</span>
+                <span class="brand-kicker">AGENT OS</span>
+              </span>
+            </div>
             <button
               class="icon-btn subtle sidebar-toggle sidebar-collapse-toggle"
               type="button"

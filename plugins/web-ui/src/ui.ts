@@ -22,6 +22,27 @@ export function icon(node: IconNode, size = 18): SVGElement {
   return el;
 }
 
+const ASCII_RAMP = [" ", " ", " ", " ", " ", "·", "·", "·", ":", "░", "▒"];
+
+export function asciiField(cols: number, rows: number): string {
+  const lines: string[] = [];
+  for (let y = 0; y < rows; y++) {
+    let line = "";
+    for (let x = 0; x < cols; x++) {
+      const v =
+        Math.sin(x * 0.21 + y * 0.37) +
+        Math.sin(x * 0.083 - y * 0.19) +
+        Math.sin((x + y * 1.7) * 0.127) +
+        Math.sin(Math.hypot(x - cols * 0.7, y - rows * 0.32) * 0.31);
+      const t = (v + 4) / 8;
+      const idx = Math.min(ASCII_RAMP.length - 1, Math.max(0, Math.floor(t * ASCII_RAMP.length)));
+      line += ASCII_RAMP[idx];
+    }
+    lines.push(line);
+  }
+  return lines.join("\n");
+}
+
 export function initials(s: string): string {
   const base = (s.split("@")[0] || s).trim();
   const parts = base.split(/[.\-_ ]+/).filter(Boolean);

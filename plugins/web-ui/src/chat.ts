@@ -83,7 +83,7 @@ import {
   harnessSupportsEffort,
   harnessSupportsFastMode,
 } from "./model-options";
-import { browserRenderableImage, formatBytes, icon, relTime } from "./ui";
+import { asciiField, brandName, browserRenderableImage, formatBytes, icon, relTime } from "./ui";
 import { adminSessionLogUrl, appState, can, renderSidebarTop, syncUrlFromState } from "./shell";
 import {
   addPendingSession,
@@ -706,6 +706,21 @@ function welcomeGreeting(): TemplateResult {
   `;
 }
 
+const HERO_FIELD = asciiField(96, 26);
+
+function emptyHero(): TemplateResult {
+  return html`
+    <div class="empty-hero">
+      <pre class="empty-hero-field" aria-hidden="true">${HERO_FIELD}</pre>
+      <div class="empty-hero-kicker" aria-hidden="true">
+        <span class="empty-hero-kicker-mark"></span>${brandName()} / SESSION READY
+      </div>
+      <h1 class="empty-hero-title">Where should<br />we <span class="empty-hero-hl">start</span>?</h1>
+      <p class="empty-hero-sub">Hand off a task, ask a question, or think out loud.</p>
+    </div>
+  `;
+}
+
 export function setTranscriptWindow(anchorSeq: number | null, earlierCount: number): void {
   chatState.transcriptAnchorSeq = earlierCount > 0 ? anchorSeq : null;
   chatState.earlierCount = earlierCount;
@@ -820,6 +835,8 @@ export function drawActiveChat(agent = chatState.agent, opts: { forceScroll?: bo
     );
   } else if (isNewUser) {
     messageContent = welcomeGreeting();
+  } else {
+    messageContent = emptyHero();
   }
   const tier = currentDensity();
   const glanceTier = tier === "card" || tier === "strip" ? tier : null;
