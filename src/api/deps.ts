@@ -15,6 +15,8 @@ import type { AuditLog } from "../audit/audit-log.ts";
 import type { ErrorLog } from "../admin/error-log.ts";
 import type { MetricsSink } from "../admin/metrics-sink.ts";
 import type { TokenLedger } from "../ratelimit/token-ledger.ts";
+import type { TeamStore } from "../directory/team-store.ts";
+import type { AllocationStore } from "../ratelimit/allocation-store.ts";
 import type { RunStore } from "../runs/run-store.ts";
 import type { WorkspaceStore } from "../workspace/workspace-store.ts";
 import type { FileArtifactStore } from "../files/file-artifact-store.ts";
@@ -91,6 +93,8 @@ export interface ServerDeps {
   errors?: ErrorLog;
   metrics?: MetricsSink;
   tokenLedger?: TokenLedger;
+  teams?: TeamStore;
+  allocations?: AllocationStore;
   crons?: CronStore;
   runs?: RunStore;
   workspace?: WorkspaceStore;

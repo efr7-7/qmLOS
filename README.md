@@ -1,55 +1,128 @@
-# qm
+# LOS
 
-A multiplayer agent harness for work. In Slack and on the web.
+**The operating system for your AI workforce.**
 
-![The QM web UI: two concurrent sessions, a sidebar of personal files, crons, keychain, deploys, memory, and skills](./docs/screenshots/web-ui-hero.png)
+LOS gives every person in your company their own AI worker — with its own memory, files,
+credentials, schedule, and computer — and gives the company one place to run, govern, and
+meter all of them. In Slack and on the web. Self-hosted, MIT-licensed, in your own cloud.
 
-## What is QM?
+![The LOS web UI: session rail, personal workspace navigation, and composer](./docs/screenshots/web-home-dark.png)
 
-Most agents are designed like personal assistants. You can make one work for a whole
-company, but it quickly gets complex. QM is designed for startups. Employees each get
-their own isolated workspace and work independently without affecting each other, and
-they can also collaborate with the agent in channels, group messages, and projects.
+## Why LOS exists
 
-Each person and each room has its own scoped memory, files, keychain view, permissions,
-crons, web apps, and durable sandbox.
+Most AI tools are either a chatbox that forgets you, or a personal agent that can't be
+trusted with a company. The chatbox scales to an org but does nothing real; the personal
+agent does real work but answers to one person, holds their credentials in plain sight,
+and multiplies into an ungoverned fleet the day your teammates copy it.
 
-It's built with open source in mind. Pick your own harness and model and switch between
-them — Pi, OpenCode, Codex, and Claude Code all drive the same core, so a deployment
-isn't tied to any single vendor.
+LOS is what you get when you design for the whole company from the first line. Every
+employee gets an isolated workspace: their agent remembers *them*, holds *their* keys,
+runs *their* crons, and works on a durable computer where installed tools stay installed.
+Every Slack channel and project gets a shared scope with its own memory and files, so the
+agent in `#launch-week` knows what `#launch-week` knows — and nothing it shouldn't.
+Admins set the security posture, the model roster, and — uniquely — the token budget for
+all of it, enforced in the execution path, not discovered on an invoice.
 
-## Features
+## What your team does with it
 
-- **Personal and shared scopes.** People customize the agent to be _theirs_, and still
-  work with it collaboratively in Slack channels and projects.
-- **Slack and web.** The same identity and configuration carries between Slack and the
-  web app.
-- **Admin control.** Set org-level configuration, a security posture, and which
-  harnesses and models are available.
-- **Web apps.** Spin up custom internal apps and publish them to the right people.
-- **Shared skills.** Skills are scope-owned and shareable by grant, with admin-gated
-  promotion to the whole org and skill packs imported from git repositories.
-- **Background work.** Crons and watches run work while nobody's watching.
+- Ask anything against your company's knowledge, files, and the web — in a DM or a channel
+- Hand it real work: run tests, open PRs, watch CI, check logs, in an isolated sandbox
+- Build internal web apps in conversation and publish them to exactly the right people
+- Teach it your writing voice, then let a cron triage your inbox with drafts ready to send
+- Track a project in a shared channel where the agent posts updates and follow-ups
+- Capture a workflow once as a **skill**, share it with your team, promote it org-wide
 
-## What you can do with it
+## The Unified Token Budget
 
-- Search internal notes, email, documents, databases, and the web together
-- Retrieve information from your company brain
-- Build internal apps, publish them to the right people, and keep their data current
-- Learn your writing voice from past sends, then triage your inbox on a schedule —
-  labels and reply drafts included
-- Work in an existing repository: run tests, open PRs, monitor CI, check system logs
-- Track a project in a shared channel and post updates and follow-ups
+AI spend is the new cloud bill: unit prices fall, agentic consumption explodes, and the
+invoice arrives with no story attached. Cost-monitoring products watch this happen from
+the outside — they read provider billing metadata after the fact, attribute it to an API
+key, and email you when it's too late.
+
+LOS meters *inside* the execution path, which changes what's possible:
+
+- **Exact, per-call accounting.** Every model call lands in a durable ledger with true
+  input/output/cache token counts and harness-reported cost — by model, phase, person,
+  scope, session, and run. Not estimates. Not samples. Everything.
+- **Budgets that enforce.** Allocations attach to the org, to teams (nested, aggregating
+  their sub-teams), or to individuals. A soft allocation warns; a hard allocation
+  **refuses the turn**. The cap is a stop, not a notification.
+- **Attribution that reaches the work.** Because LOS runs the work, spend attaches to
+  what was produced — this session, this run, this phase — with cost-per-outcome
+  (a merged PR, a shipped app, a research brief) on the roadmap.
+- **The numbers that matter.** Effective $/MTok, cache-hit share, per-employee-per-month
+  spend, and estimated-vs-exact coverage, per team and per person, from
+  `GET /v1/admin/utb`. Every employee sees their own meter at `GET /v1/usage` before
+  anyone else sees a leaderboard.
+
+Teams and allocations are managed live over the admin API:
+
+```
+PUT /v1/admin/utb/teams        { "id": "eng", "name": "Engineering", "members": ["ada", "lin"] }
+PUT /v1/admin/utb/allocations  { "id": "eng-monthly", "subject": "team:eng",
+                                 "limitUsd": 500, "windowMs": 2592000000, "hard": true }
+```
+
+## Pick your engine
+
+LOS is a harness, not a model wrapper — and it refuses to marry your company to one
+vendor. Pi, OpenCode, Codex, and Claude Code all drive the same core, behind one fixed
+tool surface and one policy layer. Switch engines per turn, per scope, or org-wide;
+your memory, files, skills, budgets, and audit history don't move an inch.
+
+## Security that assumes the worst
+
+- **Postures, not vibes.** One org-wide floor — `strict` (a human approves every tool
+  call), `auto` (a classifier screens externally-sourced content for prompt injection
+  before the model sees it), or `dangerous` — which narrower scopes can only tighten.
+- **A command policy that never sleeps.** Recursive deletes, force-pushes, destructive
+  SQL, and `curl | sh` require approval in *every* posture, `dangerous` included. The
+  scanner unwraps quoting, encoding, and nested shells before matching.
+- **Isolation as architecture.** Each scope's sandbox is its own computer. Egress runs
+  through a policy proxy that hard-blocks cloud metadata endpoints. Credentials live in
+  a keychain, delivered per-turn, never written to disk in the clear.
+- **Memory that can't be poisoned quietly.** Facts captured from untrusted sources are
+  rewritten to read as claims, with provenance, before they're stored.
+- **Everything audited.** Turns, tool calls, approvals, screen verdicts, egress, admin
+  reads — including who looked at whose spend.
+
+## Designed like a product, not a dashboard
+
+Dark-first, near-black surfaces with elevation done by light, not shadow; one electric
+accent used only where it means something; a calm, paper-toned light mode; full-width
+transcript rows that read like a document instead of a bubble fight. The entire system
+derives from design tokens, and the accent re-derives from your org's brand color at
+runtime — one env var and the whole interface is yours.
+
+![The LOS web UI in light mode](./docs/screenshots/web-home-light.png)
+
+## Run it locally
+
+Requires Node ≥ 24.15 and Docker (for the local sandbox and optional Postgres).
+
+```bash
+npm install
+cp .env.example .env        # generate the five signing secrets (≥32 chars each)
+npm run dev                 # core on :8080
+
+cd plugins/web-ui
+npm install && npm run build
+npm run serve               # web UI on :8096
+```
+
+Without `DATABASE_URL`, LOS runs fully in-memory — perfect for kicking the tires.
+Point `DATABASE_URL` at Postgres and sessions, runs, crons, memory, audit, and the
+token ledger all become durable.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  DB[("Postgres<br/>sessions · memory · queue")]
+  DB[("Postgres<br/>sessions · memory · queue · token ledger")]
 
   subgraph CORE["Headless core"]
-    API["API · identity · policy · scheduler"]
-    LOOP["Agent loop<br/>(Pi, OpenCode, Claude Code)"]
+    API["API · identity · policy · scheduler · budgets"]
+    LOOP["Agent loop<br/>(Pi, OpenCode, Codex, Claude Code)"]
     API <--> LOOP
   end
 
@@ -59,121 +132,37 @@ flowchart LR
   LOOP <--> SBX
 ```
 
-Every turn runs through a central core, which can use a variety of models and harnesses
-to generate the response. A Postgres persistence layer holds user data, session history,
-and other durable state. The agent has a small, fixed tool surface; one of those tools is
-`execute`, which runs commands in the scope's own isolated sandbox — its durable computer,
-where installed tools stay installed. The web UI, the admin panel, and the public portal
-are optional plugins over the core's HTTP API;
-Slack is an optional in-process plugin that core starts
-and supervises through a direct service client.
+One headless core owns every turn: identity, policy, budget check, harness dispatch,
+delivery. Every substrate — harness, sandbox, session store, memory, ledger — sits
+behind an interface with an in-memory dev implementation and a production one, selected
+in a single wiring file. Surfaces are plugins over the core's HTTP API: the web UI, the
+admin panel, and the public portal are separate processes that never import core; Slack
+runs in-process and hot-reloads when the installation changes. Everything specific to
+one company lives in a deployment directory that the [`qm` CLI](./cli/README.md)
+validates and deploys to your own Fly.io or AWS account.
 
-The core runs TypeScript directly on Node and uses Fastify for HTTP. The Slack plugin
-uses Bolt; the web UI builds with Vite and renders with Lit.
+## Roadmap
 
-The core itself is generic. Everything specific to one company — org config, custom tools
-and skills, sandbox image, infrastructure — lives in a **deployment directory** that the
-[`qm` CLI](./cli/README.md) validates and deploys. Every substrate (harness, session
-store, sandbox, memory) sits behind an interface, so production implementations swap in
-via one wiring file.
-
-## Security and secrets
-
-QM's approach follows local coding agents like OpenCode, Codex, and Claude Code: the
-agent acts as the person it's working for, with their credentials and permissions, and
-everything it does is audited. An org picks one security posture, which narrower scopes
-can only tighten:
-
-- **Strict** — every harness tool call pauses for human approval, except the two
-  no-effect turn enders.
-- **Auto** (default) — a classifier screens provenance-labelled external data and tool
-  results before they reach the model; a deployment can point that at its own screening
-  proxy.
-- **Dangerous** — no content screening, no pauses between tool calls.
-
-The predeclared command policy — approval rules and hard denials for things like
-recursive deletes or destructive SQL — applies in every posture, Dangerous included.
-
-[`SECURITY.md`](./SECURITY.md) has the threat model, the operator assumptions, and the
-known limitations.
-
-## Deploy it for your org
-
-Create an organization-owned deployment repository that depends on `@yc-software/qm`:
-
-```bash
-npm exec --yes --package=@yc-software/qm@latest -- \
-  qm init . --org <slug> --target <fly-or-aws>
-npm install
-```
-
-Initialization materializes a deployment skill for an agent and walks through
-infrastructure, web sign-in, connector credentials, optional Slack access, deployment,
-and live verification — no source checkout required. Each deployment runs in the
-operator's own cloud account; initialization does not generate or enable deployment CI,
-and this repository has no production deployment workflow. See
-[`deployment.md`](./deployment.md) for the details.
-
-## Contributing
-
-We take contributions as _human-written_ text, not code — see
-[`CONTRIBUTING.md`](./CONTRIBUTING.md). Describe the change you'd like informally in a
-`.txt` or `.md` file in [`adrs/`](./adrs/), and if we're aligned we'll handle the
-implementation. Report vulnerabilities privately — see [`SECURITY.md`](./SECURITY.md),
-not a public issue.
-
-## Customize your instance
-
-The deployment repository above carries config and a sandbox layer, and never needs a
-source checkout. Some organizations want the opposite trade: the whole codebase in one
-place, so engineers and coding agents read core and customizations together, while the
-customizations themselves stay private. For that, keep a **private fork**: a standalone
-private repository whose history begins as a clone of qm and whose core stays identical
-to upstream.
-
-Populate it once, then clone it to work in:
-
-```bash
-gh repo create <org>/qm-private --private
-
-git clone --bare git@github.com:yc-software/qm qm-seed.git
-git -C qm-seed.git push --mirror git@github.com:<org>/qm-private
-rm -rf qm-seed.git
-
-git clone git@github.com:<org>/qm-private
-git -C qm-private remote add upstream git@github.com:yc-software/qm
-```
-
-Create the private fork with a plain clone, as shown above, and never with GitHub's fork
-feature. The word "fork" here names the concept — a downstream copy that diverges
-deliberately and merges from upstream — not GitHub's Fork button. A GitHub fork inherits
-the visibility of the repository it came from, so a fork of a public repository cannot be
-made private. A GitHub fork also shares one object network with the repository it came
-from, so commits pushed to the fork stay fetchable by SHA from the public side. Many
-organizations disallow forking private repositories as well. A plain clone has none of
-these problems, and it costs one thing: the clone is an ordinary repository, so upstream's
-CI workflows run live in your own account. Expect to supply the secrets those workflows
-need, or disable the ones you do not want running.
-
-Everything specific to your organization goes in `deploy/layers/<org>/` — config, sandbox
-tools and skills, plugin images, infrastructure — in the same shape `qm init` produces. See
-[`deploy/layers/README.md`](./deploy/layers/README.md). Core stays byte-identical to
-upstream, which is what keeps merges small.
-
-Two skills maintain the boundary in both directions. `update-qm` merges upstream qm into
-the private fork and opens the sync PR; `upstream-pr` sends an organization-agnostic fix back to
-qm, cutting the branch from `upstream/main` and checking the outgoing diff, commit
-messages, and screenshots for organization identifiers before it pushes. Nothing under
-`deploy/layers/` ever travels upstream.
+- **Value per token.** Outcome classification (code pushed, sent internally, artifact
+  shipped, research) from delivery and git-broker events, then an efficiency leaderboard
+  that ranks quality-per-dollar — with judge scoring metered on the same ledger.
+- **Speak OpenTelemetry.** GenAI-convention spans for every call, pointable at the
+  observability stack you already run — Langfuse, Datadog, Grafana — without LOS
+  shipping a single extra stateful service.
+- **Routing governance.** Frontier-model use outside an allowance pauses for a one-line
+  justification through the same approval machinery the strict posture already uses.
+- **Enterprise identity.** SCIM provisioning, SAML, exportable audit.
 
 ## Going deeper
 
-- [`docs/getting-started.md`](./docs/getting-started.md) — first run, end to end
-- [`cli/README.md`](./cli/README.md) — the `qm` CLI and the deployment directory contract
-- [`docs/deploy-directory.md`](./docs/deploy-directory.md) — the deployment directory in full
+- [`docs/getting-started.md`](./docs/getting-started.md) — deploy for an organization
+- [`adrs/`](./adrs) — design records, including the Unified Token Budget and
+  observability strategy
 - [`.env.example`](./.env.example) — every knob, documented in place
-- [`plugins/`](./plugins) — the surfaces (Slack, web UI, admin, portal)
+- [`SECURITY.md`](./SECURITY.md) — threat model and operator assumptions
 
-## License
+## Lineage and license
 
-Except where otherwise noted, QM is available under the [MIT License](./LICENSE).
+LOS is a downstream fork of [QM](https://github.com/yc-software/qm), the multiplayer
+agent harness open-sourced by Y Combinator, and tracks its core. Except where otherwise
+noted, LOS is available under the [MIT License](./LICENSE).

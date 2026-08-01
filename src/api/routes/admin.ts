@@ -7,7 +7,20 @@ import {
   retention,
   whoami,
 } from "./admin/scope-config.ts";
-import { egress, listAdminAudit, listAdminErrors, listAdminRuns, metrics, utbSummary } from "./admin/observability.ts";
+import {
+  deleteUtbAllocation,
+  deleteUtbTeam,
+  egress,
+  listAdminAudit,
+  listAdminErrors,
+  listAdminRuns,
+  metrics,
+  putUtbAllocation,
+  putUtbTeam,
+  utbAllocations,
+  utbSummary,
+  utbTeams,
+} from "./admin/observability.ts";
 import { getAdminSession, getAdminSessionLlm, listAdminSessions, listAdminShadowDeliveries } from "./admin/sessions.ts";
 import { downloadAdminFile, listAdminFiles, readAdminFile, uploadAdminFile } from "./admin/files.ts";
 import { archiveAdminSkill, getAdminSkill, listAdminArtifacts, putAdminCronDestination } from "./admin/artifacts.ts";
@@ -66,6 +79,12 @@ const routes: ReadonlyArray<Route<ApiCtx>> = [
   { method: "GET", path: "/v1/admin/retention", auth: "either", handle: retention },
   { method: "GET", path: "/v1/admin/metrics", auth: "either", handle: metrics },
   { method: "GET", path: "/v1/admin/utb", auth: "either", handle: utbSummary },
+  { method: "GET", path: "/v1/admin/utb/teams", auth: "either", handle: utbTeams },
+  { method: "PUT", path: "/v1/admin/utb/teams", auth: "either", handle: putUtbTeam },
+  { method: "DELETE", path: "/v1/admin/utb/teams/:id", auth: "either", handle: deleteUtbTeam },
+  { method: "GET", path: "/v1/admin/utb/allocations", auth: "either", handle: utbAllocations },
+  { method: "PUT", path: "/v1/admin/utb/allocations", auth: "either", handle: putUtbAllocation },
+  { method: "DELETE", path: "/v1/admin/utb/allocations/:id", auth: "either", handle: deleteUtbAllocation },
   { method: "GET", path: "/v1/admin/egress", auth: "either", handle: egress },
   { method: "GET", path: "/v1/admin/sessions", auth: "either", handle: listAdminSessions },
   { method: "GET", path: "/v1/admin/sessions/:id/llm", auth: "either", handle: getAdminSessionLlm },

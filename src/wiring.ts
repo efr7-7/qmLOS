@@ -55,6 +55,11 @@ import { createBudgetTracker } from "./ratelimit/budget.ts";
 import { createPostgresBudgetTracker } from "./ratelimit/postgres-budget.ts";
 import { createMemoryTokenLedger, type TokenLedger } from "./ratelimit/token-ledger.ts";
 import { createPostgresTokenLedger } from "./ratelimit/postgres-token-ledger.ts";
+import { createMemoryTeamStore, type TeamStore } from "./directory/team-store.ts";
+import { createPostgresTeamStore } from "./directory/postgres-team-store.ts";
+import { createMemoryAllocationStore, type AllocationStore } from "./ratelimit/allocation-store.ts";
+import { createPostgresAllocationStore } from "./ratelimit/postgres-allocation-store.ts";
+import { createAllocationBudgetTracker } from "./ratelimit/allocation-budget.ts";
 import { createCronStore, type CronStore } from "./cron/cron-store.ts";
 import { createDeliveryStore, type DeliveryStore } from "./delivery/delivery-store.ts";
 import { createPostgresDeliveryStore } from "./delivery/postgres-delivery-store.ts";
@@ -331,6 +336,8 @@ export interface BuiltApp {
   errors: ErrorLog;
   metrics: MetricsSink;
   tokenLedger: TokenLedger;
+  teams: TeamStore;
+  allocations: AllocationStore;
   crons: CronStore;
   credentialUsage: CredentialUsageSink;
   egressAudit: EgressAuditSink;
@@ -534,6 +541,11 @@ export function buildApp(
   const tokenLedger = config.databaseUrl
     ? createPostgresTokenLedger(config.databaseUrl)
     : createMemoryTokenLedger();
+  const teams = config.databaseUrl ? createPostgresTeamStore(config.databaseUrl) : createMemoryTeamStore();
+  const allocations = config.databaseUrl
+    ? createPostgresAllocationStore(config.databaseUrl)
+    : createMemoryAllocationStore();
+  const enforcedBudget = createAllocationBudgetTracker(budget, { teams, allocations, ledger: tokenLedger });
   const resolution = createResolutionService(config.orgId, configStore, acl);
 
   const workspace = createLocalWorkspaceStore(config.dataDir);
@@ -901,7 +913,7 @@ export function buildApp(
     modelGateway,
     auditLog,
     rateLimiter,
-    budget,
+    budget: enforcedBudget,
     tokenLedger,
     harness,
     memory,
@@ -1400,6 +1412,8 @@ export function buildApp(
     errors,
     metrics,
     tokenLedger,
+    teams,
+    allocations,
     crons,
     credentialUsage,
     egressAudit,

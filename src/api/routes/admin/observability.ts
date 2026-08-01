@@ -3,6 +3,7 @@ import { cacheHitRatio, isStablePrefixMiss, type TurnMetricSample } from "../../
 import { sendJson } from "../../http.ts";
 import { audit, requireScopedAdmin } from "../shared.ts";
 import { type ApiCtx } from "../route.ts";
+import { isAllocationSubject } from "../../../ratelimit/allocation-store.ts";
 
 const METRICS_SCAN_LIMIT = 10000;
 const METRICS_RUNS_SCAN_LIMIT = 500;
@@ -385,4 +386,90 @@ export async function utbSummary(ctx: ApiCtx): Promise<void> {
   const pepmUsd =
     headcount && headcount > 0 && windowDays > 0 ? (totalCostUsd / headcount) * (30 / windowDays) : null;
   return sendJson(res, 200, { since, scopeId: scope, orgWide, totalCostUsd, headcount, pepmUsd, groups });
+}
+
+export async function utbTeams(ctx: ApiCtx): Promise<void> {
+  const { res, deps } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  if (!deps.teams) return sendJson(res, 404, { error: "not_found" });
+  audit(deps, { principalId: authz.actor.id, action: "utb.teams.read", resource: "teams", scopeLabel: authz.scope });
+  return sendJson(res, 200, { teams: await deps.teams.list() });
+}
+
+export async function putUtbTeam(ctx: ApiCtx): Promise<void> {
+  const { res, deps, body } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  if (!deps.teams) return sendJson(res, 404, { error: "not_found" });
+  const b = body as { id?: unknown; name?: unknown; parentId?: unknown; members?: unknown };
+  const id = typeof b.id === "string" ? b.id.trim() : "";
+  const name = typeof b.name === "string" ? b.name.trim() : "";
+  if (!id || !name) return sendJson(res, 400, { error: "bad_request", message: "id and name required" });
+  const parentId = typeof b.parentId === "string" && b.parentId.trim() ? b.parentId.trim() : null;
+  if (parentId === id) return sendJson(res, 400, { error: "bad_request", message: "a team cannot parent itself" });
+  await deps.teams.upsert({ id, name, parentId });
+  if (Array.isArray(b.members)) {
+    for (const member of b.members) {
+      if (typeof member === "string" && member.trim()) await deps.teams.setMember(id, member.trim());
+    }
+  }
+  audit(deps, { principalId: authz.actor.id, action: "utb.teams.write", resource: id, scopeLabel: authz.scope });
+  return sendJson(res, 200, { ok: true });
+}
+
+export async function deleteUtbTeam(ctx: ApiCtx): Promise<void> {
+  const { res, deps } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  if (!deps.teams) return sendJson(res, 404, { error: "not_found" });
+  const id = ctx.params.id!;
+  await deps.teams.remove(id);
+  audit(deps, { principalId: authz.actor.id, action: "utb.teams.delete", resource: id, scopeLabel: authz.scope });
+  return sendJson(res, 200, { ok: true });
+}
+
+export async function utbAllocations(ctx: ApiCtx): Promise<void> {
+  const { res, deps } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  if (!deps.allocations) return sendJson(res, 404, { error: "not_found" });
+  audit(deps, {
+    principalId: authz.actor.id,
+    action: "utb.allocations.read",
+    resource: "allocations",
+    scopeLabel: authz.scope,
+  });
+  return sendJson(res, 200, { allocations: await deps.allocations.list() });
+}
+
+export async function putUtbAllocation(ctx: ApiCtx): Promise<void> {
+  const { res, deps, body } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  if (!deps.allocations) return sendJson(res, 404, { error: "not_found" });
+  const b = body as { id?: unknown; subject?: unknown; limitUsd?: unknown; windowMs?: unknown; hard?: unknown };
+  const id = typeof b.id === "string" ? b.id.trim() : "";
+  const limitUsd = typeof b.limitUsd === "number" && Number.isFinite(b.limitUsd) ? b.limitUsd : NaN;
+  const windowMs = typeof b.windowMs === "number" && Number.isFinite(b.windowMs) ? b.windowMs : 86_400_000;
+  if (!id || !isAllocationSubject(b.subject) || !(limitUsd > 0) || !(windowMs > 0)) {
+    return sendJson(res, 400, {
+      error: "bad_request",
+      message: "id, subject (org | team:<id> | principal:<id>), and positive limitUsd required",
+    });
+  }
+  await deps.allocations.upsert({ id, subject: b.subject, limitUsd, windowMs, hard: b.hard === true });
+  audit(deps, { principalId: authz.actor.id, action: "utb.allocations.write", resource: id, scopeLabel: authz.scope });
+  return sendJson(res, 200, { ok: true });
+}
+
+export async function deleteUtbAllocation(ctx: ApiCtx): Promise<void> {
+  const { res, deps } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  if (!deps.allocations) return sendJson(res, 404, { error: "not_found" });
+  const id = ctx.params.id!;
+  await deps.allocations.remove(id);
+  audit(deps, { principalId: authz.actor.id, action: "utb.allocations.delete", resource: id, scopeLabel: authz.scope });
+  return sendJson(res, 200, { ok: true });
 }
