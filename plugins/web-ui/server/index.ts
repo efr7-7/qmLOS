@@ -1126,6 +1126,22 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
       return relay(res, r);
     }
 
+    if (method === "GET" && path === "/api/usage") {
+      const r = await coreFetch("GET", `/v1/usage?principalId=${encodeURIComponent(user)}`);
+      return relay(res, r);
+    }
+
+    if (method === "GET" && path === "/api/admin/utb") {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const r = await coreFetchCap("GET", `/v1/admin/utb?scope=${encodeURIComponent(scope)}`);
+      return relay(res, r);
+    }
+
+    if (method === "GET" && path === "/api/admin/utb/leaderboard") {
+      const r = await coreFetchCap("GET", "/v1/admin/utb/leaderboard");
+      return relay(res, r);
+    }
+
     if (method === "GET" && path === "/api/memory") {
       const r = await coreFetch("GET", `/v1/memory?principalId=${encodeURIComponent(user)}`);
       return relay(res, r);

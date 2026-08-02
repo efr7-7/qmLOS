@@ -1,5 +1,6 @@
 import { html, nothing, render, type TemplateResult } from "lit";
 import {
+  Activity,
   ArrowLeft,
   Box,
   Brain,
@@ -69,6 +70,7 @@ import { clearConnectorNotice, noteConnectorResult, renderConnectors, resetKeych
 import { renderDeploys } from "./deploys";
 import { renderMemory, resetMemoryState } from "./memory";
 import { renderSkills } from "./skills";
+import { renderUsage, resetUsageState } from "./usage";
 import { contextsState, ensureContexts, renderContexts, resetContextsState } from "./contexts";
 import { appState, isView, type AuthMode, type Me, type View } from "./shell-state";
 import { trapDialogFocus } from "./dialog-focus";
@@ -191,6 +193,7 @@ const ICON = {
   crons: Clock,
   memory: Brain,
   skills: Box,
+  usage: Activity,
 };
 
 export async function signOut(): Promise<void> {
@@ -209,6 +212,7 @@ export async function signOut(): Promise<void> {
   appState.currentView = "chats";
   composerState.skillsCache = null;
   resetMemoryState();
+  resetUsageState();
   resetContextsState();
   resetKeychainState();
   resetComposer();
@@ -589,6 +593,7 @@ export function renderSidebarTop(): void {
             ${navRow("files", ICON.files, "Files")} ${navRow("crons", ICON.crons, "Crons")}
             ${navRow("keychain", ICON.keychain, "Keychain")} ${navRow("deploys", ICON.deploys, "Apps")}
             ${navRow("memory", ICON.memory, "Memory")} ${navRow("skills", ICON.skills, "Skills")}
+            ${navRow("usage", ICON.usage, "Usage")}
           `,
         )}
       </nav>
@@ -671,6 +676,9 @@ export function switchView(v: View): void {
     case "skills":
       void renderSkills();
       break;
+    case "usage":
+      void renderUsage();
+      break;
   }
 }
 
@@ -701,6 +709,9 @@ function refreshActiveView(v: View): void {
       break;
     case "skills":
       void renderSkills();
+      break;
+    case "usage":
+      void renderUsage();
       break;
   }
 }
