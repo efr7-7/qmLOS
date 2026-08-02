@@ -109,6 +109,7 @@ import {
   refreshRuntimeSelection,
   resetComposer,
   resizeComposer,
+  setComposerDraft,
 } from "./composer";
 import { newChatDraftKey, saveDraft, storedDraft } from "./drafts";
 
@@ -708,7 +709,69 @@ function welcomeGreeting(): TemplateResult {
 
 const HERO_FIELD = asciiField(96, 26);
 
-function emptyHero(): TemplateResult {
+const STARTER_CELL: Record<string, string> = {
+  v: "px-violet",
+  V: "px-violet soft",
+  a: "px-amber",
+  A: "px-amber soft",
+  c: "px-coral",
+  C: "px-coral soft",
+  s: "px-sky",
+  S: "px-sky soft",
+};
+
+interface Starter {
+  hue: string;
+  title: string;
+  sub: string;
+  prompt: string;
+  art: string[];
+}
+
+const STARTERS: Starter[] = [
+  {
+    hue: "var(--play-sky)",
+    title: "Draft my investor update",
+    sub: "Numbers pulled, written in your voice",
+    prompt: "Draft my monthly investor update. Pull the latest numbers from our tools and keep it in my voice.",
+    art: ["......s", "....s.s", "..s.s.s", "..s.s.s", "s.s.s.s", "SSSSSSS"],
+  },
+  {
+    hue: "var(--play-amber)",
+    title: "Set a team budget",
+    sub: "Monthly tokens, allocated sensibly",
+    prompt: "Help me set a monthly token budget for the team and allocate it across everyone sensibly.",
+    art: ["...a...", "..aAa..", "..aAa..", ".aAAAa.", ".aAAAa.", "aaaaaaa"],
+  },
+  {
+    hue: "var(--play-violet)",
+    title: "Triage my inbox on a schedule",
+    sub: "A morning cron sorts and summarizes",
+    prompt: "Set up a cron that triages my inbox every morning and sends me a short summary of what needs me.",
+    art: ["..vvv..", ".v.V.v.", "v..v..v", "v..vv.v", ".v...v.", "..vvv.."],
+  },
+  {
+    hue: "var(--play-coral)",
+    title: "Build an internal app",
+    sub: "From a one-line brief to a live tool",
+    prompt: "Build an internal app for the team. Start by asking me what it needs to do.",
+    art: ["ccccccc", "cCc...c", "ccccccc", "c.CC.Cc", "c.CC.Cc", "ccccccc"],
+  },
+];
+
+function starterArt(rows: string[]): TemplateResult {
+  const cols = rows[0]?.length ?? 0;
+  const cells: TemplateResult[] = [];
+  for (const row of rows) {
+    for (const ch of row) {
+      const cls = STARTER_CELL[ch];
+      cells.push(html`<i class=${cls ? `px ${cls}` : "px"}></i>`);
+    }
+  }
+  return html`<div class="px-art" style=${`--px-cols:${cols}`} aria-hidden="true">${cells}</div>`;
+}
+
+function emptyHero(agent: Agent): TemplateResult {
   return html`
     <div class="empty-hero">
       <pre class="empty-hero-field" aria-hidden="true">${HERO_FIELD}</pre>
@@ -718,6 +781,22 @@ function emptyHero(): TemplateResult {
       </div>
       <h1 class="empty-hero-title">Where should<br />we <span class="empty-hero-hl">start</span>?</h1>
       <p class="empty-hero-sub">Hand off a task, ask a question, or think out loud.</p>
+      <div class="starter-row">
+        ${STARTERS.map(
+          (s) => html`
+            <button
+              type="button"
+              class="starter-card"
+              style=${`--starter-hue:${s.hue}`}
+              @click=${() => setComposerDraft(s.prompt, agent)}
+            >
+              ${starterArt(s.art)}
+              <span class="starter-card-title">${s.title}</span>
+              <span class="starter-card-sub">${s.sub}</span>
+            </button>
+          `,
+        )}
+      </div>
     </div>
   `;
 }
@@ -837,7 +916,7 @@ export function drawActiveChat(agent = chatState.agent, opts: { forceScroll?: bo
   } else if (isNewUser) {
     messageContent = welcomeGreeting();
   } else {
-    messageContent = emptyHero();
+    messageContent = emptyHero(agent);
   }
   const tier = currentDensity();
   const glanceTier = tier === "card" || tier === "strip" ? tier : null;

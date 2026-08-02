@@ -228,6 +228,14 @@ export function resetComposer(): void {
   composerState.slashDismissed = false;
 }
 
+export function setComposerDraft(text: string, agent: Agent): void {
+  composerState.draft = text;
+  composerState.error = "";
+  persistDraft();
+  drawActiveChat(agent);
+  focusComposerEnd();
+}
+
 export function currentModelOption(): ModelOption {
   const picked = chatState.threadRef ? threadModelPicks.get(chatState.threadRef) : undefined;
   return modelOptionFor(picked ?? defaultModelValue());
