@@ -1,8 +1,9 @@
 import { html, render, type TemplateResult } from "lit";
-import { Activity, KeyRound, Link, LockKeyhole, Plug, Plus, RefreshCw, ShieldCheck } from "lucide";
+import { Activity, KeyRound, LockKeyhole, Plug, Plus, RefreshCw, ShieldCheck } from "lucide";
 import { api } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
 import { icon } from "./ui";
+import { emptyPlayground } from "./playground";
 import { appState, replacePanePreservingFocus } from "./shell";
 import { focusDialogCancel, restoreDialogFocus, trapDialogFocus } from "./dialog-focus";
 import { isActiveGrant, isExpiredCredential, KeychainOperations, keychainSummary } from "./keychain-state";
@@ -536,13 +537,11 @@ function drawConnectors(loading = false): void {
             ${
               connectorCards.length
                 ? connectorCards
-                : html`<div class="kc-empty">
-                    ${icon(Link, 20)}
-                    <div>
-                      <strong>No accounts available</strong
-                      ><span>Your workspace has not configured any account providers yet.</span>
-                    </div>
-                  </div>`
+                : emptyPlayground(
+                    "key",
+                    "Nothing on the keyring",
+                    "Your workspace hasn't wired up any account providers yet.",
+                  )
             }
           </div>
         </section>

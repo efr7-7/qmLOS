@@ -28,6 +28,7 @@ import {
   type CoreSession,
 } from "./core-bridge";
 import { UI_BASE } from "./deep-link";
+import { emptyPlayground } from "./playground";
 import { errMessage } from "../../chassis/src/errors";
 import { actionSnippet, closeFormMenus, formatBytes, icon, initials, relTime, toggleFormMenu } from "./ui";
 import { appState, renderSidebarTop, replacePanePreservingFocus, switchView, syncUrlFromState } from "./shell";
@@ -320,9 +321,9 @@ function gridTpl(): TemplateResult {
   let projectList: TemplateResult | typeof nothing = nothing;
   if (projects.length) projectList = html`<div class="grid project-grid">${projects.map(contextCard)}</div>`;
   else if (!contextsLoading) {
-    projectList = html`<div class="empty compact project-empty">
-      ${projectsFiltered ? "No projects match your search." : "No projects yet."}
-    </div>`;
+    projectList = projectsFiltered
+      ? html`<div class="empty compact project-empty">No projects match your search.</div>`
+      : emptyPlayground("folder", "No projects yet", "Make one — every big thing starts as a folder.");
   }
   return html`
     <div class="project-grid-content">

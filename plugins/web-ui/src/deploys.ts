@@ -5,6 +5,7 @@ import { api, withBase } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
 import { copyText, icon, relTime } from "./ui";
 import { listBackLink, listPageTpl } from "./list-page";
+import { emptyPlayground } from "./playground";
 import { contextsState, ensureContexts, scopeChip } from "./contexts";
 import { appState } from "./shell";
 import { chatState, drawActiveChat, newChat } from "./chat";
@@ -278,11 +279,13 @@ function drawDeploysPage(): void {
   const allForTab = deployList.filter(
     (d) => deploymentTab(d, viewer) === deployTab && deploymentInScope(d, deployScope),
   );
-  let empty = deploymentTabEmptyMessage(deployTab);
+  let empty: string | TemplateResult = deploymentTabEmptyMessage(deployTab);
   if (!deployList.length && deployNotices.list) empty = deployNotices.list;
   else if (deployLoading && deployList.length === 0) empty = "Loading apps…";
   else if (deployQuery && allForTab.length) empty = "No apps match your search.";
   else if (deployScope) empty = "No apps in this context.";
+  else if (!deployList.length)
+    empty = emptyPlayground("rocket", "Nothing deployed yet", "Your first app is one conversation away.");
   const content = deployList.length
     ? [
         deployTabs(),

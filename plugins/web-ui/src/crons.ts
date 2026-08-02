@@ -4,6 +4,7 @@ import { api } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
 import { icon } from "./ui";
 import { listBackLink, listPageTpl } from "./list-page";
+import { emptyPlayground } from "./playground";
 import { ensureContexts, scopeChip } from "./contexts";
 import { appState } from "./shell";
 import { chatState, newChat } from "./chat";
@@ -210,10 +211,15 @@ function drawCronsPage(): void {
     rows.push(...archived.map(({ c, mine }) => cronPageRow(c, mine)));
     if (!archived.length) rows.push(cronEmptyRow("Nothing archived."));
   }
-  let empty = "No crons yet.";
+  let empty: string | TemplateResult = emptyPlayground(
+    "clock",
+    "Nothing scheduled",
+    "The robots are idle — for now. Put them on a timer.",
+  );
   if (cronsNotice) empty = cronsNotice;
   else if (cronsLoading && cronList.length === 0 && visibleCronList.length === 0) empty = "Loading crons…";
   else if (cronsScope) empty = "No crons in this context.";
+  else if (cronsSearch.trim()) empty = "No crons match your search.";
   render(
     listPageTpl({
       title: "Crons",
@@ -298,7 +304,7 @@ function cronPageRow(c: CronView, mine: boolean): TemplateResult {
   return html`
     <div class="list-row cron-row cron-${status}">
       <button class="cron-row-main" type="button" @click=${() => openCron(c)}>
-        <span class="list-row-title cron-title-line"><span>${cronTitle(c)}</span></span>
+        <span class="list-row-title cron-title-line"><span class="cron-dot" aria-hidden="true"></span><span>${cronTitle(c)}</span></span>
         ${preview ? html`<span class="cron-preview">${preview}</span>` : nothing}
         <span class="list-row-meta">
           ${isPersonalScope(c) ? nothing : scopeChip(c.ownerScopeId, c.scopeName ?? null)}

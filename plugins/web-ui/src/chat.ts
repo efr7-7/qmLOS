@@ -714,6 +714,7 @@ function emptyHero(): TemplateResult {
       <pre class="empty-hero-field" aria-hidden="true">${HERO_FIELD}</pre>
       <div class="empty-hero-kicker" aria-hidden="true">
         <span class="empty-hero-kicker-mark"></span>${brandName()} / SESSION READY
+        <span class="hero-pixels"><i></i><i></i><i></i><i></i><i></i></span>
       </div>
       <h1 class="empty-hero-title">Where should<br />we <span class="empty-hero-hl">start</span>?</h1>
       <p class="empty-hero-sub">Hand off a task, ask a question, or think out loud.</p>

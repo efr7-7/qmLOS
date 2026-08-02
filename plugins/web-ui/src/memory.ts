@@ -3,6 +3,7 @@ import { Clock3, Pencil, RefreshCw, Search, Trash2 } from "lucide";
 import { api, ApiError } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
 import { icon } from "./ui";
+import { emptyPlayground } from "./playground";
 import { appState, replacePanePreservingFocus } from "./shell";
 
 interface RevisionRow {
@@ -147,9 +148,9 @@ function drawMemory(loading = false): void {
                               </button>
                             </div>`,
                         )
-                      : html`<div class="empty-state">
-                          ${search ? "No remembered facts match this search." : "The agent hasn’t noted any facts yet."}
-                        </div>`
+                      : search
+                        ? html`<div class="empty-state">No remembered facts match this search.</div>`
+                        : emptyPlayground("brain", "A fresh mind", "Nothing remembered yet. Say something worth keeping.")
                   }
                 </div>`
         }

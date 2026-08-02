@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide";
 import { api } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
 import { icon } from "./ui";
+import { emptyPlayground } from "./playground";
 import { appState, replacePanePreservingFocus } from "./shell";
 
 interface UsageRow {
@@ -335,6 +336,10 @@ function orgSection(o: OrgUtb, board: Leaderboard | null): TemplateResult {
   </section>`;
 }
 
+function usageIsEmpty(): boolean {
+  return Boolean(usage) && !usage?.byModel?.length && !usage?.byPhase?.length && n(usage?.totalCostUsd) <= 0;
+}
+
 function drawUsage(loading = false): void {
   if (appState.currentView !== "usage" || !appState.mainEl) return;
   const host = document.createElement("div");
@@ -358,7 +363,8 @@ function drawUsage(loading = false): void {
         </button>
       </header>
       ${notice || loading ? html`<div class="status">${notice || "Loading…"}</div>` : nothing}
-      ${usage ? personalSection(usage) : nothing} ${org ? orgSection(org, leaderboard) : nothing}
+      ${usageIsEmpty() && !loading ? emptyPlayground("pulse", "All quiet on the meter", "Tokens will show up here the moment work starts.") : nothing}
+      ${usage && !usageIsEmpty() ? personalSection(usage) : nothing} ${org ? orgSection(org, leaderboard) : nothing}
     `,
     host,
   );

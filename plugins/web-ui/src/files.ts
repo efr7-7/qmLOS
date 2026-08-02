@@ -3,6 +3,7 @@ import { File, Image, Upload } from "lucide";
 import { api, reportSigninRequired, type SigninRequired, withBase } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
 import { browserRenderableImage, formatBytes, icon, relTime } from "./ui";
+import { emptyPlayground } from "./playground";
 import { contextsState, ensureContexts, personalScopeId, scopeChip, scopeFilterControl } from "./contexts";
 import { appState } from "./shell";
 import { fileListNeedsAllPages } from "./file-list";
@@ -180,7 +181,7 @@ function drawFiles(loading = false): void {
           },
         )}
       </div>
-      ${visible.length ? html`<div class="list-rows file-list">${visible.map(fileRow)}</div>` : html`<div class="empty compact">${filtered ? "No files match these filters." : "No files yet. Upload one here or ask the agent to create one."}</div>`}
+      ${visible.length ? html`<div class="list-rows file-list">${visible.map(fileRow)}</div>` : filtered ? html`<div class="empty compact">No files match these filters.</div>` : emptyPlayground("file", "No files yet", "Drop something in, or let the agent make the first one.")}
       ${filesNextCursor ? html`<div class="list-footer"><button class="btn" type="button" ?disabled=${filesLoadingMore} @click=${() => void loadMoreFiles()}>${filesLoadingMore ? "Loading…" : "Load more"}</button></div>` : nothing}
     `,
     filesHost,
@@ -191,7 +192,7 @@ function fileRow(f: FileRow) {
   const contentUrl = withBase(`/api/files/${encodeURIComponent(f.id)}/content`);
   const isImage = f.openable && browserRenderableImage(f.mimetype);
   return html`<article class="list-row file-row">
-    <span class="file-row-icon">${icon(isImage ? Image : File, 17)}</span>
+    <span class="file-row-icon ft-${typeOf(f)}">${icon(isImage ? Image : File, 17)}</span>
     <span class="list-row-title"><span>${f.name}</span><span class="file-row-type">${f.mimetype}</span></span>
     <span class="list-row-meta"
       >${scopeChip(fileScope(f))}<span class="badge">${f.kind}</span><span>${formatBytes(f.sizeBytes)}</span

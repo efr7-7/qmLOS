@@ -4,6 +4,7 @@ import { api, type CoreContext } from "./core-bridge";
 import type { SkillItem } from "./composer";
 import { errMessage } from "../../chassis/src/errors";
 import { icon } from "./ui";
+import { emptyPlayground } from "./playground";
 import { appState } from "./shell";
 import { skillActions } from "./skill-actions";
 import {
@@ -490,7 +491,11 @@ function drawSkills(loading = false): void {
     drawSkills();
   };
   const emptyState = skillEmptyState(skillRows.length, filtered.length, loading);
-  let empty: string | TemplateResult = "No skills available yet.";
+  let empty: string | TemplateResult = emptyPlayground(
+    "cube",
+    "No skills yet",
+    "Teach the agent a trick once and it sticks.",
+  );
   if (emptyState === "filtered") {
     empty = html`<div class="skill-empty">
       <span>No skills match these filters.</span

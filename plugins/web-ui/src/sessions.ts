@@ -58,6 +58,7 @@ import {
 import { errMessage } from "../../chassis/src/errors";
 import { copyText, icon, relTime } from "./ui";
 import { listPageTpl } from "./list-page";
+import { playHue } from "./playground";
 import {
   contextsState,
   ensureContexts,
@@ -566,6 +567,12 @@ function sessionWorking(s: CoreSession): boolean {
   return rowIndicators(s, liveThread()).working;
 }
 
+function sessionChip(s: CoreSession): TemplateResult {
+  const set = Boolean(s.color);
+  const hue = s.color ?? playHue(s.id || s.threadRef);
+  return html`<span class="session-chip ${set ? "" : "auto"}" style=${`--chip:${hue}`} aria-hidden="true"></span>`;
+}
+
 function statusMarks(s: CoreSession): TemplateResult {
   const ind = rowIndicators(s, liveThread());
   return html`${ind.working ? html`<span class="working-dot" ${ref(syncWorkingPulse)} title="Agent is working" aria-label="Agent is working"></span>` : nothing}${
@@ -613,7 +620,7 @@ function chatPageRow(s: CoreSession): TemplateResult {
       style=${s.color ? `--session-color:${s.color}` : nothing}
     >
       <button class="chat-row-open" type="button" @click=${() => void openSession(s)}>
-        <span class="list-row-title">${statusMarks(s)}${groupDmTitle(s)}</span>
+        <span class="list-row-title">${sessionChip(s)}${statusMarks(s)}${groupDmTitle(s)}</span>
         <span class="list-row-meta">
           ${scopeChip(s.scopeId, s.channelName ?? null)}
           ${surfaceOf(s) === "slack" ? html`<span class="surface surface-slack">${slackLogo(13)}</span>` : nothing}
@@ -787,7 +794,7 @@ function sessionRow(s: CoreSession, projectChild = false): TemplateResult {
         @click=${() => openSession(s)}
       >
         <div class="title" aria-live="polite">
-          ${statusMarks(s)}${surfaceGlyph(s)}${readOnly ? html`<span class="ro-lock" title="Read-only">${icon(Lock, 12)}</span>` : nothing}<span
+          ${sessionChip(s)}${statusMarks(s)}${surfaceGlyph(s)}${readOnly ? html`<span class="ro-lock" title="Read-only">${icon(Lock, 12)}</span>` : nothing}<span
             class="tl"
             >${titleContent}</span
           >${context ? html`<span class="row-context" title=${context}>${context}</span>` : nothing}
