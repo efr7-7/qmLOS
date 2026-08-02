@@ -94,9 +94,8 @@ jobs:
           node --test "deploy/stacks/*/test/*.test.ts"
 
   cli-version:
-    if: github.repository == 'yc-software/qm'
     name: CLI version bump
-    if: github.event_name == 'pull_request'
+    if: github.repository == 'yc-software/qm' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
