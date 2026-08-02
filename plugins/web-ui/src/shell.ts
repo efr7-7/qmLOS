@@ -271,10 +271,10 @@ function mountSigninHalo(): void {
   const host = (appEl as HTMLElement).querySelector<HTMLElement>(".signin-halo");
   if (!host || host.childElementCount > 0) return;
   const token = ++heroToken;
-  void import("./dotcut")
+  void import("./swirl/mount.ts")
     .then((mod) => {
       if (token !== heroToken || !host.isConnected) return;
-      heroCleanup = mod.mountDotCut(host);
+      heroCleanup = mod.mountSwirl(host);
     })
     .catch(() => undefined);
 }
