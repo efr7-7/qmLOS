@@ -30,7 +30,11 @@ async function descendantTeamIds(teams: TeamStore, rootId: string): Promise<stri
   return out;
 }
 
-async function teamSpendUsd(deps: AllocationBudgetDeps, teamId: string, since: number): Promise<number> {
+async function teamSpendUsd(
+  deps: Pick<AllocationBudgetDeps, "teams" | "ledger">,
+  teamId: string,
+  since: number,
+): Promise<number> {
   const memberSets = await Promise.all((await descendantTeamIds(deps.teams, teamId)).map((id) => deps.teams.members(id)));
   const members = new Set(memberSets.flat());
   if (!members.size) return 0;
@@ -38,7 +42,11 @@ async function teamSpendUsd(deps: AllocationBudgetDeps, teamId: string, since: n
   return rows.filter((row) => members.has(row.key)).reduce((sum, row) => sum + row.costUsd, 0);
 }
 
-async function allocationSpendUsd(deps: AllocationBudgetDeps, allocation: Allocation, now: number): Promise<number> {
+export async function allocationSpendUsd(
+  deps: Pick<AllocationBudgetDeps, "teams" | "ledger">,
+  allocation: Allocation,
+  now: number,
+): Promise<number> {
   const since = now - allocation.windowMs;
   if (allocation.subject === "org") {
     const rows = await deps.ledger.summary("phase", { since });

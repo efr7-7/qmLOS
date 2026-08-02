@@ -4,6 +4,7 @@ import { sendJson } from "../../http.ts";
 import { audit, requireScopedAdmin } from "../shared.ts";
 import { type ApiCtx } from "../route.ts";
 import { isAllocationSubject } from "../../../ratelimit/allocation-store.ts";
+import { allocationSpendUsd } from "../../../ratelimit/allocation-budget.ts";
 
 const METRICS_SCAN_LIMIT = 10000;
 const METRICS_RUNS_SCAN_LIMIT = 500;
@@ -440,7 +441,17 @@ export async function utbAllocations(ctx: ApiCtx): Promise<void> {
     resource: "allocations",
     scopeLabel: authz.scope,
   });
-  return sendJson(res, 200, { allocations: await deps.allocations.list() });
+  const now = Date.now();
+  const allocations = await Promise.all(
+    (await deps.allocations.list()).map(async (allocation) => {
+      const spentUsd =
+        deps.teams && deps.tokenLedger
+          ? await allocationSpendUsd({ teams: deps.teams, ledger: deps.tokenLedger }, allocation, now).catch(() => null)
+          : null;
+      return { ...allocation, spentUsd };
+    }),
+  );
+  return sendJson(res, 200, { allocations });
 }
 
 export async function putUtbAllocation(ctx: ApiCtx): Promise<void> {

@@ -54,15 +54,26 @@ interface Leaderboard {
   rows?: LeaderboardRow[];
 }
 
+interface Allocation {
+  id?: string;
+  subject?: string;
+  limitUsd?: number;
+  windowMs?: number;
+  hard?: boolean;
+  spentUsd?: number | null;
+}
+
 let usage: UsageSummary | null = null;
 let org: OrgUtb | null = null;
 let leaderboard: Leaderboard | null = null;
+let allocations: Allocation[] | null = null;
 let notice = "";
 
 export function resetUsageState(): void {
   usage = null;
   org = null;
   leaderboard = null;
+  allocations = null;
   notice = "";
 }
 
@@ -311,6 +322,42 @@ function personalSection(u: UsageSummary): TemplateResult {
   </section>`;
 }
 
+function subjectLabel(subject: string): string {
+  if (subject === "org") return "Whole organization";
+  if (subject.startsWith("team:")) return `Team · ${subject.slice(5)}`;
+  if (subject.startsWith("principal:")) return `Person · ${subject.slice(10)}`;
+  return subject;
+}
+
+function windowLabel(windowMs: number): string {
+  if (windowMs >= 27 * 86_400_000) return "per month";
+  if (windowMs >= 6 * 86_400_000) return "per week";
+  if (windowMs >= 86_400_000) return "per day";
+  return `per ${Math.max(1, Math.round(windowMs / 3_600_000))}h`;
+}
+
+function allocationRows(rows: Allocation[]): TemplateResult {
+  return html`<div class="usage-allocs">
+    ${rows.map((a) => {
+      const limit = n(a.limitUsd);
+      const spent = a.spentUsd == null ? null : n(a.spentUsd);
+      const share = spent !== null && limit > 0 ? Math.min(1, spent / limit) : 0;
+      const over = spent !== null && limit > 0 && spent >= limit;
+      return html`<div class="usage-alloc ${over ? "over" : ""}">
+        <div class="usage-alloc-head">
+          <span class="usage-alloc-subject">${subjectLabel(String(a.subject ?? ""))}</span>
+          <span class="usage-alloc-kind ${a.hard ? "hard" : ""}">${a.hard ? "HARD" : "SOFT"}</span>
+          <span class="usage-alloc-amounts">
+            ${spent !== null ? money(spent) : "—"} <span class="usage-alloc-of">of</span> ${money(limit)}
+            <span class="usage-alloc-window">${windowLabel(n(a.windowMs) || 86_400_000)}</span>
+          </span>
+        </div>
+        ${meter(share, over ? "over" : "")}
+      </div>`;
+    })}
+  </div>`;
+}
+
 function orgSection(o: OrgUtb, board: Leaderboard | null): TemplateResult {
   const models = o.groups?.model ?? [];
   const sources = o.groups?.source ?? [];
@@ -326,6 +373,15 @@ function orgSection(o: OrgUtb, board: Leaderboard | null): TemplateResult {
       ${tile("PEPM", money(o.pepmUsd), html`<div class="usage-tile-sub">per employee, per month</div>`)}
       ${tile("Headcount", String(n(o.headcount)), html`<div class="usage-tile-sub">people on the meter</div>`)}
     </div>
+    ${
+      allocations?.length
+        ? card(
+            "Allocated budgets",
+            "Hard allocations refuse the turn at the cap; soft ones warn.",
+            allocationRows(allocations),
+          )
+        : nothing
+    }
     ${models.length ? card("By model", "Effective rate and spend across the org.", orgModelTable(models)) : nothing}
     ${sources.length ? card("By source", "Which surfaces the tokens flow through.", sourceSplit(sources)) : nothing}
     ${
@@ -377,10 +433,11 @@ export async function renderUsage(): Promise<void> {
   notice = "";
   drawUsage(true);
   const orgScope = `org:${appState.me?.org ?? ""}`;
-  const [mine, utb, board] = await Promise.allSettled([
+  const [mine, utb, board, allocs] = await Promise.allSettled([
     api<UsageSummary>("/api/usage"),
     api<OrgUtb>(`/api/admin/utb?scope=${encodeURIComponent(orgScope)}`),
     api<Leaderboard>("/api/admin/utb/leaderboard"),
+    api<{ allocations: Allocation[] }>("/api/admin/utb/allocations"),
   ]);
   if (seq !== appState.viewRenderSeq || appState.currentView !== "usage") return;
   if (mine.status === "fulfilled") usage = mine.value;
@@ -390,5 +447,6 @@ export async function renderUsage(): Promise<void> {
   }
   org = utb.status === "fulfilled" ? utb.value : null;
   leaderboard = board.status === "fulfilled" ? board.value : null;
+  allocations = allocs.status === "fulfilled" ? (allocs.value.allocations ?? null) : null;
   drawUsage();
 }

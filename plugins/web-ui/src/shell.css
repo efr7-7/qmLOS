@@ -7560,6 +7560,54 @@ select:focus-visible {
   font-family: var(--font-mono);
   font-size: 9.5px;
 }
+.usage-allocs {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.usage-alloc-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.usage-alloc-subject {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.usage-alloc-kind {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+}
+.usage-alloc-kind.hard {
+  border-color: color-mix(in srgb, var(--qm-accent) 55%, var(--border));
+  color: var(--qm-accent);
+}
+.usage-alloc-amounts {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.usage-alloc-of,
+.usage-alloc-window {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.usage-alloc-window {
+  margin-left: 6px;
+}
+.usage-alloc.over .usage-alloc-amounts {
+  color: var(--play-coral, #fb7185);
+}
+.usage-alloc .usage-meter.over > span {
+  background: var(--play-coral, #fb7185);
+}
 .usage-rank {
   color: var(--muted-foreground);
 }
@@ -7909,4 +7957,29 @@ select:focus-visible {
   .new-chat:hover::after {
     transform: none;
   }
+}
+
+.signin {
+  background: #0b0d10;
+}
+.signin-halo {
+  z-index: 0;
+}
+.signin::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(58% 72% at 30% 44%, rgba(4, 6, 9, 0.62) 0%, rgba(4, 6, 9, 0.28) 52%, transparent 76%);
+}
+.signin .signin-display {
+  color: #f4f6f9;
+  text-shadow: 0 2px 28px rgba(4, 6, 9, 0.55);
+}
+.signin .signin-kicker {
+  color: color-mix(in srgb, var(--qm-accent) 62%, #f4f6f9);
+}
+.signin .signin-panel {
+  background: color-mix(in srgb, var(--card) 94%, transparent);
 }

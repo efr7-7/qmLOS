@@ -1142,6 +1142,11 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
       return relay(res, r);
     }
 
+    if (method === "GET" && path === "/api/admin/utb/allocations") {
+      const r = await coreFetchCap("GET", "/v1/admin/utb/allocations");
+      return relay(res, r);
+    }
+
     if (method === "GET" && path === "/api/memory") {
       const r = await coreFetch("GET", `/v1/memory?principalId=${encodeURIComponent(user)}`);
       return relay(res, r);

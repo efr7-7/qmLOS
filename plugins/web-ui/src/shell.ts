@@ -29,7 +29,7 @@ import {
 } from "./core-bridge";
 import { applyRuntimeOptions } from "./model-options";
 import { errMessage, swallow } from "../../chassis/src/errors";
-import { asciiField, brandMark, brandName, icon, initials } from "./ui";
+import { brandMark, brandName, icon, initials } from "./ui";
 import {
   chatState,
   markConnectorConnected,
@@ -262,8 +262,6 @@ function devBanner(user: string) {
   `;
 }
 
-const GATE_FIELD = asciiField(200, 90);
-
 let heroCleanup: (() => void) | null = null;
 let heroToken = 0;
 
@@ -271,10 +269,10 @@ function mountSigninHalo(): void {
   const host = (appEl as HTMLElement).querySelector<HTMLElement>(".signin-halo");
   if (!host || host.childElementCount > 0) return;
   const token = ++heroToken;
-  void import("./signin-hero")
+  void import("./dotcut")
     .then((mod) => {
       if (token !== heroToken || !host.isConnected) return;
-      heroCleanup = mod.mountSigninHero(host);
+      heroCleanup = mod.mountDotCut(host);
     })
     .catch(() => undefined);
 }
@@ -290,7 +288,6 @@ function disposeSigninHalo(): void {
 function gateShell(body: unknown) {
   return html`
     <div class="signin">
-      <pre class="signin-field" aria-hidden="true">${GATE_FIELD}</pre>
       <div class="signin-halo" aria-hidden="true"></div>
       <div class="signin-stage">
         <div class="signin-hero" aria-hidden="true">
