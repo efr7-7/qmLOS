@@ -81,6 +81,7 @@ let shellMounted = false;
 
 setSigninRequiredHandler((detail) => {
   authMode = detail.mode ?? authMode;
+  if (shellMounted) markSessionEnded();
   renderAuthGate(gateFor(authMode, detail.reason));
 });
 
@@ -228,6 +229,7 @@ export async function signOut(): Promise<void> {
     endedSession = false;
   }
   if (!endedSession) {
+    markSessionEnded();
     renderAuthGate({ kind: "portal" });
     return;
   }
@@ -289,21 +291,52 @@ function gateShell(body: unknown) {
   return html`
     <div class="signin">
       <div class="signin-halo" aria-hidden="true"></div>
-      <div class="signin-stage">
-        <div class="signin-hero" aria-hidden="true">
-          <div class="signin-display">${brandName()}</div>
-          <div class="signin-kicker"><span class="signin-kicker-mark"></span>OPERATING SYSTEM FOR THE AI WORKFORCE</div>
-        </div>
-        <div class="signin-panel">
-          <div class="signin-brand">
-            ${brandMark()}<span>${brandName()}</span>
-            ${authMode === "dev" ? html`<span class="dev-chip">DEV</span>` : nothing}
-          </div>
-          ${body}
-        </div>
-      </div>
+      <header class="gate-brand">
+        ${brandMark()}<span>${brandName()}</span>
+        ${authMode === "dev" ? html`<span class="dev-chip">DEV</span>` : nothing}
+      </header>
+      <div class="gate-meta" aria-hidden="true">SELF-HOSTED // MIT</div>
+      ${body}
     </div>
   `;
+}
+
+function gateDock(status: string, line: unknown, action: unknown) {
+  return html`
+    <div class="gate-dock">
+      <div class="gate-copy">
+        <span class="gate-status">${status}</span>
+        <span class="gate-line" aria-live="polite">${line}</span>
+      </div>
+      ${action === nothing ? nothing : html`<div class="gate-actions">${action}</div>`}
+    </div>
+  `;
+}
+
+const GATE_ENDED_KEY = "qm.gate.ended";
+
+function markSessionEnded(): void {
+  try {
+    sessionStorage.setItem(GATE_ENDED_KEY, "1");
+  } catch {
+    void 0;
+  }
+}
+
+function sessionEnded(): boolean {
+  try {
+    return sessionStorage.getItem(GATE_ENDED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function clearSessionEnded(): void {
+  try {
+    sessionStorage.removeItem(GATE_ENDED_KEY);
+  } catch {
+    void 0;
+  }
 }
 
 const PORTAL_ATTEMPT_KEY = "qm.portal.signin.attempt";
@@ -338,36 +371,29 @@ function clearPortalAttempt(): void {
 
 function portalGate() {
   if (portalAttemptedRecently())
-    return gateShell(html`
-      <h1>Sign in through the portal</h1>
-      <p class="signin-body">
-        This surface is reached through the portal, and signing in there didn't produce a session for it. Open the
-        portal address directly rather than this one.
-      </p>
-      <div class="hint">
-        If you opened this surface's own address, that's the cause — it can't authenticate anyone on its own.
-      </div>
-    `);
-  return gateShell(html`
-    <h1>Your session ended</h1>
-    <p class="signin-body">You've been signed out. Sign in again and you'll come back to this page.</p>
-    <button class="btn primary" type="button" @click=${signInWithPortal}>Sign in</button>
-  `);
+    return gateShell(
+      gateDock(`${brandName()} // NO SESSION`, "The portal didn't hand off a session. Open the portal's own address.", nothing),
+    );
+  const ended = sessionEnded();
+  return gateShell(
+    gateDock(
+      ended ? `${brandName()} // SESSION ENDED` : `${brandName()} // READY`,
+      ended ? "Sign in again." : "Sign in to continue.",
+      html`<button class="gate-btn" type="button" @click=${signInWithPortal}>Sign in</button>`,
+    ),
+  );
 }
 
 function deniedGate() {
-  return gateShell(html`
-    <h1>You don't have access</h1>
-    <p class="signin-body">
-      Your account is signed in and verified — it just isn't allowed on this instance. Ask an administrator to add you.
-    </p>
-    <button class="btn" type="button" @click=${signOut}>Sign out</button>
-    ${
+  return gateShell(
+    gateDock(
+      `${brandName()} // NOT ALLOWED`,
       authMode === "dev"
-        ? html`<div class="hint">This instance lists its principals in <b>WEB_UI_PRINCIPALS</b>.</div>`
-        : nothing
-    }
-  `);
+        ? html`This account isn't listed in <b>WEB_UI_PRINCIPALS</b>.`
+        : "This account isn't allowed here. Ask an administrator.",
+      html`<button class="gate-btn ghost" type="button" @click=${signOut}>Sign out</button>`,
+    ),
+  );
 }
 
 function retryBoot(): void {
@@ -375,12 +401,13 @@ function retryBoot(): void {
 }
 
 function unreachableGate() {
-  return gateShell(html`
-    <h1>We couldn't reach the assistant</h1>
-    <p class="signin-body">The service didn't respond. This is usually temporary.</p>
-    <button class="btn primary" type="button" @click=${retryBoot}>Try again</button>
-    <div class="hint">If this keeps happening, the core service may be down.</div>
-  `);
+  return gateShell(
+    gateDock(
+      `${brandName()} // UNREACHABLE`,
+      "The core didn't respond.",
+      html`<button class="gate-btn" type="button" @click=${retryBoot}>Retry</button>`,
+    ),
+  );
 }
 
 async function submitDevSignin(user: string): Promise<void> {
@@ -397,6 +424,7 @@ async function submitDevSignin(user: string): Promise<void> {
 function devGate(gate: { value?: string; error?: string; pending?: boolean }) {
   return gateShell(html`
     <form
+      class="gate-dock"
       @submit=${(e: Event) => {
         e.preventDefault();
         if (gate.pending) return;
@@ -405,29 +433,32 @@ function devGate(gate: { value?: string; error?: string; pending?: boolean }) {
         if (user) void submitDevSignin(user);
       }}
     >
-      <h1>Dev sign-in</h1>
-      <p class="signin-body">
-        No identity provider is configured, so this instance trusts a local cookie. Set
-        <b>CORE_SIGNING_SECRET</b> and run the portal to use real sign-in.
-      </p>
-      <label for="dev-principal">Principal</label>
-      <input
-        id="dev-principal"
-        name="principal"
-        type="text"
-        inputmode="email"
-        autocomplete="username"
-        spellcheck="false"
-        required
-        autofocus
-        placeholder="you@org.com"
-        .value=${gate.value ?? ""}
-        ?disabled=${gate.pending === true}
-      />
-      <button class="btn primary" type="submit" ?disabled=${gate.pending === true}>
-        ${gate.pending ? "Signing in…" : "Continue"}
-      </button>
-      ${gate.error ? html`<div class="hint error" role="alert">${gate.error}</div>` : nothing}
+      <div class="gate-copy">
+        <span class="gate-status">${brandName()} // DEV MODE</span>
+        <span class="gate-line ${gate.error ? "error" : ""}" aria-live="polite">
+          ${gate.error ?? "No identity provider. Sign in as a principal."}
+        </span>
+      </div>
+      <div class="gate-actions">
+        <input
+          class="gate-input"
+          id="dev-principal"
+          name="principal"
+          type="text"
+          inputmode="email"
+          autocomplete="username"
+          spellcheck="false"
+          required
+          autofocus
+          aria-label="Principal"
+          placeholder="you@org.com"
+          .value=${gate.value ?? ""}
+          ?disabled=${gate.pending === true}
+        />
+        <button class="gate-btn" type="submit" ?disabled=${gate.pending === true}>
+          ${gate.pending ? "Signing in…" : "Continue"}
+        </button>
+      </div>
     </form>
   `);
 }
@@ -878,6 +909,7 @@ export async function boot(): Promise<void> {
   appState.me = (await r.json()) as Me;
   authMode = appState.me.mode ?? "portal";
   clearPortalAttempt();
+  clearSessionEnded();
   const runtimeConfig = await fetchRuntimeConfig(`personal:${appState.me.user}`);
   if (runtimeConfig)
     applyRuntimeOptions(

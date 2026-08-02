@@ -318,6 +318,8 @@ class DotCut {
   private ro: ResizeObserver | null = null;
   private disposed = false;
   private fontFamily = "sans-serif";
+  private lastAccent = "";
+  private lastGround = "";
 
   constructor(host: HTMLElement, fontFamily?: string) {
     this.host = host;
@@ -441,6 +443,17 @@ class DotCut {
     const m = easeInOut(this.paletteMix);
     const circle = mixHex(cA, cB, m);
     const back = mixHex(bA, bB, m);
+    const surface = this.host.parentElement;
+    if (surface) {
+      if (circle !== this.lastAccent) {
+        this.lastAccent = circle;
+        surface.style.setProperty("--gate-accent", circle);
+      }
+      if (back !== this.lastGround) {
+        this.lastGround = back;
+        surface.style.setProperty("--gate-ground", back);
+      }
+    }
     ctx.fillStyle = back;
     ctx.fillRect(0, 0, W, H);
     const pitch = this.pitch * s;

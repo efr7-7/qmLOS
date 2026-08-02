@@ -3922,8 +3922,7 @@ body.resizing-sidebar {
   box-sizing: border-box;
   resize: vertical;
 }
-.resource-form textarea:focus,
-.signin input:focus {
+.resource-form textarea:focus {
   outline: 2px solid var(--border);
   outline-offset: 1px;
 }
@@ -3986,100 +3985,6 @@ body.resizing-sidebar {
   font-size: 12px;
   color: var(--destructive, #c00);
   min-height: 1em;
-}
-
-.signin {
-  height: 100vh;
-  height: 100dvh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  box-sizing: border-box;
-}
-.signin-panel,
-.signin form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 340px;
-  max-width: 100%;
-}
-.signin form {
-  width: auto;
-}
-.signin-brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0;
-  margin-bottom: 4px;
-}
-.signin-brand .dev-chip {
-  margin-left: auto;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--dev-accent);
-  color: #fff;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
-.signin-body {
-  font-size: 13.5px;
-  color: var(--muted-foreground);
-  line-height: 1.5;
-  margin: -4px 0 2px;
-}
-.signin-body b {
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 0.9em;
-  font-weight: 600;
-  color: var(--foreground);
-}
-.signin label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  margin-bottom: -6px;
-}
-.signin-brand .brand-mark {
-  width: 22px;
-  height: 22px;
-  flex-basis: 22px;
-  font-size: 16px;
-}
-.signin h1 {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.2;
-  margin: 0 0 2px;
-}
-.signin input {
-  font: inherit;
-  font-size: 14px;
-  padding: 11px 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--background);
-  color: var(--foreground);
-}
-.signin .btn {
-  padding: 11px 13px;
-  font-size: 14px;
-  border-radius: var(--radius-md);
-}
-.signin .hint {
-  font-size: 12px;
-  color: var(--muted-foreground);
-  line-height: 1.45;
-}
-.signin .hint.error {
-  color: var(--destructive, #c00);
 }
 
 @media (max-width: 860px) {
@@ -7023,33 +6928,6 @@ select:focus-visible {
   --kc-green: var(--qm-accent-strong);
 }
 
-.signin {
-  background:
-    radial-gradient(
-      600px 320px at 50% 0%,
-      color-mix(in srgb, var(--qm-accent) 7%, transparent),
-      transparent 70%
-    ),
-    var(--background);
-}
-.signin-panel {
-  width: 380px;
-  box-sizing: border-box;
-  padding: 30px 28px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--card);
-  box-shadow: var(--elev-pop);
-}
-.signin h1 {
-  letter-spacing: -0.015em;
-}
-.signin input:focus-visible {
-  border-color: color-mix(in srgb, var(--qm-accent) 45%, var(--border));
-  outline: 2px solid var(--qm-accent-wash);
-  outline-offset: 0;
-}
-
 .section-label,
 .recents-group {
   font-family: var(--font-mono);
@@ -7313,115 +7191,6 @@ select:focus-visible {
   color: var(--muted-foreground);
 }
 
-.signin {
-  position: relative;
-  overflow: hidden;
-  background: var(--background);
-}
-.signin-field {
-  position: absolute;
-  inset: -40px;
-  margin: 0;
-  z-index: 0;
-  font-family: var(--font-mono);
-  font-size: 16px;
-  line-height: 1.08;
-  color: var(--qm-accent);
-  opacity: 0.17;
-  overflow: hidden;
-  pointer-events: none;
-  user-select: none;
-  -webkit-mask-image: radial-gradient(120% 120% at 68% 30%, #000 0%, transparent 72%);
-  mask-image: radial-gradient(120% 120% at 68% 30%, #000 0%, transparent 72%);
-}
-.signin-halo {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  user-select: none;
-}
-.signin-halo canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.signin-stage {
-  position: relative;
-  z-index: 1;
-  width: min(1300px, 100%);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: clamp(32px, 6vw, 96px);
-}
-.signin-hero {
-  min-width: 0;
-  user-select: none;
-}
-.signin-display {
-  font-size: clamp(96px, 16vw, 268px);
-  font-weight: 800;
-  letter-spacing: -0.06em;
-  line-height: 0.82;
-  margin-left: -0.045em;
-  color: var(--foreground);
-  white-space: nowrap;
-}
-.signin-kicker {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: clamp(20px, 3vw, 34px);
-  font-family: var(--font-mono);
-  font-size: clamp(10px, 1vw, 12.5px);
-  font-weight: 600;
-  letter-spacing: 0.32em;
-  color: color-mix(in srgb, var(--qm-accent) 80%, var(--foreground));
-  white-space: nowrap;
-}
-.signin-kicker-mark {
-  width: 11px;
-  height: 11px;
-  flex: 0 0 11px;
-  background: var(--qm-accent);
-}
-.signin-panel {
-  border-radius: 10px;
-  border-color: var(--border-strong);
-  box-shadow:
-    6px 6px 0 color-mix(in srgb, var(--qm-accent) 22%, transparent),
-    var(--elev-float);
-  background: color-mix(in srgb, var(--card) 92%, transparent);
-  backdrop-filter: blur(6px);
-}
-.signin .btn {
-  border-radius: 7px;
-  font-weight: 650;
-}
-.signin input {
-  border-radius: 7px;
-}
-.signin h1 {
-  letter-spacing: -0.025em;
-  font-weight: 700;
-}
-@media (max-width: 960px) {
-  .signin {
-    align-items: flex-start;
-    padding-top: clamp(48px, 10vh, 110px);
-  }
-  .signin-stage {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 36px;
-  }
-  .signin-display {
-    font-size: clamp(88px, 21vw, 180px);
-  }
-  .signin-panel {
-    justify-self: start;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .new-chat:hover,
   .btn.primary:hover,
@@ -8031,27 +7800,236 @@ select:focus-visible {
 }
 
 .signin {
+  --gate-accent: var(--brand-accent, #34d9ab);
+  --gate-ground: #0b0d10;
+  --gate-fg: #f4f6f9;
+  --gate-dim: rgba(214, 222, 231, 0.58);
+  --gate-inset: 25px;
+  --gate-dock-h: 64px;
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background: #0b0d10;
 }
 .signin-halo {
-  z-index: 0;
-}
-.signin::after {
-  content: "";
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--gate-dock-h);
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(62% 78% at 30% 46%, rgba(4, 6, 9, 0.8) 0%, rgba(4, 6, 9, 0.42) 54%, transparent 78%);
+  user-select: none;
 }
-.signin .signin-display {
-  color: #f4f6f9;
-  text-shadow: 0 2px 28px rgba(4, 6, 9, 0.55);
+.signin-halo canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
-.signin .signin-kicker {
-  color: color-mix(in srgb, var(--qm-accent) 28%, #f4f6f9);
-  text-shadow: 0 1px 14px rgba(4, 6, 9, 0.85);
+.gate-brand {
+  position: absolute;
+  top: var(--gate-inset);
+  left: var(--gate-inset);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--gate-fg);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  user-select: none;
 }
-.signin .signin-panel {
-  background: color-mix(in srgb, var(--card) 94%, transparent);
+.gate-brand .brand-mark {
+  width: 20px;
+  height: 20px;
+  flex-basis: 20px;
+  font-size: 14px;
+  border-radius: 3px;
+}
+.gate-brand .dev-chip {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--dev-accent);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.gate-meta {
+  position: absolute;
+  right: var(--gate-inset);
+  top: var(--gate-inset);
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: rgba(214, 222, 231, 0.4);
+  user-select: none;
+}
+.gate-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 20px;
+  min-height: var(--gate-dock-h);
+  margin: 0;
+  padding: 10px var(--gate-inset);
+  border: 0;
+  border-top: 1px solid rgba(244, 246, 249, 0.12);
+  background: var(--gate-ground);
+  animation: gate-rise 0.7s cubic-bezier(0.22, 0.9, 0.26, 1) 0.35s backwards;
+}
+.gate-dock::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 140px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gate-accent), transparent);
+  pointer-events: none;
+  animation: gate-scan 7s linear infinite;
+}
+.gate-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 16px;
+  min-width: 0;
+}
+.gate-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--gate-accent);
+  white-space: nowrap;
+}
+.gate-line {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: rgba(230, 235, 241, 0.82);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.gate-line b {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  font-weight: 600;
+}
+.gate-line.error {
+  color: #ff8a8f;
+}
+.gate-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-left: auto;
+}
+.gate-btn {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 11px 20px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--gate-accent);
+  color: #071015;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.12s ease;
+}
+.gate-btn:hover:not(:disabled) {
+  filter: brightness(1.09);
+}
+.gate-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.gate-btn.ghost {
+  background: transparent;
+  color: var(--gate-fg);
+  border-color: rgba(244, 246, 249, 0.28);
+}
+.gate-btn.ghost:hover:not(:disabled) {
+  filter: none;
+  border-color: rgba(244, 246, 249, 0.5);
+}
+.gate-btn:focus-visible,
+.gate-input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--gate-accent) 60%, transparent);
+  outline-offset: 2px;
+}
+.gate-input {
+  font: inherit;
+  font-size: 13.5px;
+  width: min(280px, 100%);
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid rgba(244, 246, 249, 0.2);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--gate-ground) 60%, transparent);
+  color: var(--gate-fg);
+}
+.gate-input::placeholder {
+  color: rgba(214, 222, 231, 0.38);
+}
+.gate-input:focus-visible {
+  outline-offset: 0;
+  border-color: color-mix(in srgb, var(--gate-accent) 55%, transparent);
+}
+
+@keyframes gate-scan {
+  from {
+    transform: translateX(-140px);
+  }
+  to {
+    transform: translateX(100vw);
+  }
+}
+@keyframes gate-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@media (max-width: 720px) {
+  .gate-dock {
+    flex-wrap: wrap;
+  }
+  .gate-copy {
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .gate-line {
+    white-space: normal;
+  }
+  .gate-actions {
+    margin-left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gate-dock,
+  .gate-dock::after {
+    animation: none;
+  }
+  .gate-dock::after {
+    opacity: 0;
+  }
 }
