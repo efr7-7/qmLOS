@@ -1,6 +1,7 @@
-# LOS
+# LOS — Line of Sight
 
-**The operating system for your AI workforce.**
+**The operating system for your AI workforce.** One place to run, govern, and — down
+to the token — see all of it.
 
 ![LOS](./docs/screenshots/web-signin-dark.png)
 

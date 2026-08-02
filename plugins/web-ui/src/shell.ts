@@ -271,10 +271,10 @@ function mountSigninHalo(): void {
   const host = (appEl as HTMLElement).querySelector<HTMLElement>(".signin-halo");
   if (!host || host.childElementCount > 0) return;
   const token = ++heroToken;
-  void import("./swirl/mount.ts")
+  void import("./sightline/mount.ts")
     .then((mod) => {
       if (token !== heroToken || !host.isConnected) return;
-      heroCleanup = mod.mountSwirl(host);
+      heroCleanup = mod.mountSightline(host);
     })
     .catch(() => undefined);
 }
@@ -295,7 +295,7 @@ function gateShell(body: unknown) {
         ${brandMark()}<span>${brandName()}</span>
         ${authMode === "dev" ? html`<span class="dev-chip">DEV</span>` : nothing}
       </header>
-      <div class="gate-meta" aria-hidden="true">SELF-HOSTED // MIT</div>
+      <div class="gate-meta" aria-hidden="true">LINE OF SIGHT // MIT</div>
       ${body}
     </div>
   `;
