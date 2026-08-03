@@ -200,7 +200,11 @@ test("the people roster merges directory, ledger, and team membership and ranks 
   assert.equal(drifter.displayName, "drifter", "a person absent from the directory falls back to the id");
 
   assert.equal(body.totalCostUsd, 7.25);
-  assert.equal(body.total, 5);
+  assert.equal(body.total, 3, "the roster count is directory members only — maya, tomas, quiet");
+  assert.equal(body.formerTotal, 2, "drifter and ghost spend but are not on the roster");
+  assert.equal(maya.status, "member");
+  assert.equal(drifter.status, "former", "a ledger-only spender is never rendered as an active member");
+  assert.equal(drifter.removedAt, null, "nobody tombstoned them — they were simply never on the roster");
 
   const grantee = body.people.find((p: { principalId: string }) => p.principalId === ADMIN);
   assert.equal(grantee, undefined, "an admin with no spend, team, or directory row is not invented");

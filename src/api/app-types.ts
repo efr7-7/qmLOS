@@ -49,6 +49,7 @@ import type {
   GroupMembership,
   RecipientResolution,
 } from "../directory/directory-store.ts";
+import type { RosterOverrideStore } from "../directory/roster-overrides.ts";
 import type {
   Cron,
   Delivery,
@@ -469,6 +470,7 @@ export interface AppDeps {
   crons: CronStore;
   deliveries: DeliveryStore;
   directory: DirectoryStore;
+  rosterOverrides?: RosterOverrideStore;
   projects?: ProjectStore;
   deploy: DeployService;
   deploymentLayer?: DeploymentLayerRuntime;

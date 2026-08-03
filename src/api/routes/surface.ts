@@ -15,6 +15,13 @@ import {
 } from "../../model/pi-models.ts";
 import { builtInModelCatalog, selectableCatalogForHarness, selectableModelCatalog } from "../../model/model-catalog.ts";
 import { errMessage } from "../../util/errors.ts";
+import {
+  MemoryImportError,
+  MEMORY_IMPORT_MAX_BYTES,
+  MEMORY_IMPORT_MAX_FACTS,
+  parseMemoryImport,
+  type MemoryImportResult,
+} from "../../memory/import.ts";
 import { renderAgentApis } from "../agent-api-catalog.ts";
 import { mintCapabilityToken, CAPABILITY_TTL_MS } from "../../auth/capability-token.ts";
 import { pipeToResponse, sendJson } from "../http.ts";
@@ -411,6 +418,90 @@ async function putSelfMemory(ctx: ApiCtx): Promise<void> {
   audit(deps, { principalId, action: "memory.self.update", resource: "memory", scopeLabel: scope });
   const head = await deps.memory.readHead?.(scope);
   return sendJson(res, 200, { ok: true, ...head });
+}
+
+function importSourceLabel(raw: string): string {
+  const clean = raw
+    .replace(/[()\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+  return clean || "an imported file";
+}
+
+function tagImportedFacts(facts: readonly string[], source: string): string[] {
+  const label = importSourceLabel(source);
+  return facts.map((f) => `${f} (said in ${label})`);
+}
+
+async function importSelfMemory(ctx: ApiCtx): Promise<void> {
+  const { res, deps, body } = ctx;
+  const b = body as {
+    principalId?: unknown;
+    filename?: unknown;
+    content?: unknown;
+    facts?: unknown;
+    apply?: unknown;
+  };
+  const principalId = typeof b.principalId === "string" ? b.principalId : "";
+  if (!principalId) return sendJson(res, 400, { error: "bad_request", message: "principalId required" });
+  if (!deps.memory) return sendJson(res, 404, { error: "not_found" });
+  const filename = typeof b.filename === "string" ? b.filename : "upload";
+  const scopeOf = makeScopeId("personal", principalId);
+
+  if (b.apply === true && Array.isArray(b.facts)) {
+    const picked = b.facts
+      .filter((f): f is string => typeof f === "string" && f.trim() !== "")
+      .map((f) => f.trim())
+      .slice(0, MEMORY_IMPORT_MAX_FACTS);
+    if (!picked.length) return sendJson(res, 400, { error: "bad_request", message: "facts required" });
+    const captured = await deps.memory.capture(scopeOf, tagImportedFacts(picked, filename), Date.now(), principalId);
+    audit(deps, { principalId, action: "memory.self.import", resource: filename, scopeLabel: scopeOf });
+    const applied = await deps.memory.readHead?.(scopeOf);
+    return sendJson(res, 200, {
+      ok: true,
+      applied: true,
+      source: filename,
+      offered: picked.length,
+      added: captured,
+      ...applied,
+    });
+  }
+
+  if (typeof b.content !== "string") return sendJson(res, 400, { error: "bad_request", message: "content required" });
+  let parsed: MemoryImportResult;
+  try {
+    parsed = parseMemoryImport(filename, b.content);
+  } catch (e) {
+    if (e instanceof MemoryImportError) {
+      return sendJson(res, 422, { error: "unparsable_import", message: e.message, hint: e.hint, source: filename });
+    }
+    return sendJson(res, 400, { error: "bad_request", message: errMessage(e) });
+  }
+  const scope = makeScopeId("personal", principalId);
+  if (b.apply !== true) {
+    return sendJson(res, 200, {
+      ok: true,
+      applied: false,
+      format: parsed.format,
+      source: parsed.source,
+      scanned: parsed.scanned,
+      facts: parsed.facts,
+    });
+  }
+  const added = await deps.memory.capture(scope, tagImportedFacts(parsed.facts, parsed.source), Date.now(), principalId);
+  audit(deps, { principalId, action: "memory.self.import", resource: parsed.source, scopeLabel: scope });
+  const head = await deps.memory.readHead?.(scope);
+  return sendJson(res, 200, {
+    ok: true,
+    applied: true,
+    format: parsed.format,
+    source: parsed.source,
+    scanned: parsed.scanned,
+    offered: parsed.facts.length,
+    added,
+    ...head,
+  });
 }
 
 async function getSelfMemoryHistory(ctx: ApiCtx): Promise<void> {
@@ -1177,6 +1268,13 @@ export const surfaceRoutes: ReadonlyArray<Route<ApiCtx>> = [
   { method: "GET", path: "/v1/usage", auth: "source", handle: getSelfUsage },
   { method: "GET", path: "/v1/memory", auth: "source", handle: getSelfMemory },
   { method: "PUT", path: "/v1/memory", auth: "source", handle: putSelfMemory },
+  {
+    method: "POST",
+    path: "/v1/memory/import",
+    auth: "source",
+    maxBodyBytes: MEMORY_IMPORT_MAX_BYTES,
+    handle: importSelfMemory,
+  },
   { method: "GET", path: "/v1/memory/history", auth: "source", handle: getSelfMemoryHistory },
   { method: "POST", path: "/v1/memory/restore", auth: "source", handle: restoreSelfMemory },
   { method: "GET", path: "/v1/apis", auth: "either", handle: listAgentApis },

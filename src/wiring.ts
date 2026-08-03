@@ -70,6 +70,11 @@ import { wireRunResultDeliveries } from "./delivery/run-result-delivery.ts";
 import { createDirectoryStore, type DirectoryStore } from "./directory/directory-store.ts";
 import { createPostgresDirectoryStore } from "./directory/postgres-directory-store.ts";
 import {
+  createRosterOverrideStore,
+  type RosterOverride,
+  type RosterOverrideStore,
+} from "./directory/roster-overrides.ts";
+import {
   createMemoryEnvironmentStore,
   createPostgresEnvironmentStore,
   type EnvironmentStore,
@@ -364,6 +369,7 @@ export interface BuiltApp {
   deviceFlowCutover: DeviceFlowCutoverStore;
   replayDedupe?: ReplayDedupe;
   directory: DirectoryStore;
+  rosterOverrides: RosterOverrideStore;
   projects: ProjectStore;
   environments: EnvironmentStore;
   processes?: ProcessRegistry;
@@ -836,6 +842,7 @@ export function buildApp(
       errors.record({ category: "memory", code: "capture_failed", message: errMessage(e), scopeLabel: scope }),
   });
   const directory = config.databaseUrl ? createPostgresDirectoryStore(config.databaseUrl) : createDirectoryStore();
+  const rosterOverrides = createRosterOverrideStore(artifactMap<RosterOverride>("roster_overrides"));
   const demoSeedReady: Promise<void> = config.demoMode
     ? seedDemoData({
         tokenLedger,
@@ -1113,6 +1120,7 @@ export function buildApp(
     crons,
     deliveries,
     directory,
+    rosterOverrides,
     projects,
     environments,
     deploy: deployService,
@@ -1491,6 +1499,7 @@ export function buildApp(
     deviceFlowCutover,
     ...(replayDedupe ? { replayDedupe } : {}),
     directory,
+    rosterOverrides,
     projects,
     environments,
     ...(processes ? { processes } : {}),

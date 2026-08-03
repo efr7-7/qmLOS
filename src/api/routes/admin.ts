@@ -25,7 +25,14 @@ import {
   utbSummary,
   utbTeams,
 } from "./admin/observability.ts";
-import { deleteUtbTeamMember, putUtbTeamMember, utbPeople, utbPerson } from "./admin/governance.ts";
+import {
+  createUtbPerson,
+  deleteUtbPerson,
+  deleteUtbTeamMember,
+  putUtbTeamMember,
+  utbPeople,
+  utbPerson,
+} from "./admin/governance.ts";
 import { getAdminSession, getAdminSessionLlm, listAdminSessions, listAdminShadowDeliveries } from "./admin/sessions.ts";
 import { downloadAdminFile, listAdminFiles, readAdminFile, uploadAdminFile } from "./admin/files.ts";
 import { archiveAdminSkill, getAdminSkill, listAdminArtifacts, putAdminCronDestination } from "./admin/artifacts.ts";
@@ -89,7 +96,9 @@ const routes: ReadonlyArray<Route<ApiCtx>> = [
   { method: "GET", path: "/v1/admin/audit/export", auth: "either", handle: auditExport },
   { method: "GET", path: "/v1/admin/fleet", auth: "either", handle: fleet },
   { method: "GET", path: "/v1/admin/utb/people", auth: "either", handle: utbPeople },
+  { method: "POST", path: "/v1/admin/utb/people", auth: "either", handle: createUtbPerson },
   { method: "GET", path: "/v1/admin/utb/people/:id", auth: "either", handle: utbPerson },
+  { method: "DELETE", path: "/v1/admin/utb/people/:id", auth: "either", handle: deleteUtbPerson },
   { method: "GET", path: "/v1/admin/utb/teams", auth: "either", handle: utbTeams },
   { method: "PUT", path: "/v1/admin/utb/teams", auth: "either", handle: putUtbTeam },
   {

@@ -44,6 +44,7 @@ import type { CronStore } from "../cron/cron-store.ts";
 import type { ProcessRegistry } from "../processes/process-registry.ts";
 import type { BrowserSessionStore } from "../connectors/browser-session-store.ts";
 import type { DirectoryStore } from "../directory/directory-store.ts";
+import type { RosterOverrideStore } from "../directory/roster-overrides.ts";
 import type { DeploymentLayerStore } from "../deployment/deployment-layer-store.ts";
 import type { AmbientJudgmentStore } from "../surface-cache/ambient-judgment-store.ts";
 import type { AckEmojiPickStore } from "../surface-cache/ack-emoji-pick-store.ts";
@@ -112,6 +113,7 @@ export interface ServerDeps {
   processes?: ProcessRegistry;
   browserSessionStore?: BrowserSessionStore;
   directory?: DirectoryStore;
+  rosterOverrides?: RosterOverrideStore;
   ambientJudgments?: AmbientJudgmentStore;
   ackEmojiPicks?: AckEmojiPickStore;
   channelPolicy?: ChannelPolicyStore;

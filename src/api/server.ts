@@ -467,7 +467,7 @@ function buildServer(app: App, deps: ServerOptions, allowUnsignedSourceAuth: boo
         return;
       }
     }
-    rawBodies.set(req, await readRawBody(req));
+    rawBodies.set(req, await readRawBody(req, matched?.route.maxBodyBytes));
     await ready;
     routing(req, res);
   }
@@ -483,7 +483,7 @@ export function createServer(app: App, deps: ServerOptions = {}): Server {
   }
   if (!isStrongSigningSecret(deps.signingSecret)) {
     throw new Error(
-      `CORE_SIGNING_SECRET must be at least ${MIN_SIGNING_SECRET_LENGTH} characters; tests that intentionally need unsigned source auth must use createInsecureTestServer`,
+      `CORE_SIGNING_SECRET must be at least ${MIN_SIGNING_SECRET_LENGTH} characters — it is unset or too short in your .env. Run \`npm run init:env\` to generate the signing secrets, then start again.`,
     );
   }
   if (deps.requireSignedPortalIdentity || deps.production) {

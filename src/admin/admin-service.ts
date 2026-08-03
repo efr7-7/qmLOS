@@ -37,6 +37,7 @@ export interface AdminService {
   listGrants(): Promise<AdminGrant[]>;
   createGrant(actor: Principal, input: { principalId: string; role: AdminRole; scopeId: ScopeId }): Promise<AdminGrant>;
   revokeGrant(actor: Principal, principalId: string, scope: ScopeId, role: AdminRole): Promise<void>;
+  revokeDepartedGrants(principalId: string): Promise<AdminGrant[]>;
 }
 
 export function parseAdminGrants(raw: string | undefined, orgId: string): AdminGrant[] | undefined {
@@ -135,6 +136,19 @@ export function createAdminService(store?: AdminGrantStore, opts: AdminServiceOp
         }
       }
       for (const g of matched) await grants.revoke(g.principalId, scope, role);
+    },
+    async revokeDepartedGrants(principalId) {
+      const list = await grants.list();
+      const matched = list.filter((g) => samePerson(g.principalId, principalId));
+      if (!matched.length) return [];
+      const distinctOrgAdmins = new Set(list.filter((g) => g.role === "org_admin").map((g) => personKey(g.principalId)));
+      const revoked: AdminGrant[] = [];
+      for (const g of matched) {
+        if (g.role === "org_admin" && distinctOrgAdmins.size <= 1) continue;
+        await grants.revoke(g.principalId, g.scopeId, g.role);
+        revoked.push(g);
+      }
+      return revoked;
     },
   };
 }

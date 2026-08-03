@@ -105,13 +105,20 @@ Requires Node ≥ 24.15 and Docker (for the local sandbox and optional Postgres)
 
 ```bash
 npm install
-cp .env.example .env        # generate the five signing secrets (≥32 chars each)
+npm run init:env            # writes .env from .env.example and generates the five
+                            # signing secrets; then set ADMIN_GRANTS=<your-sign-in-id>:org_admin
 npm run dev                 # core on :8080
 
 cd plugins/web-ui
 npm install && npm run build
 npm run serve               # web UI on :8096
 ```
+
+`ADMIN_GRANTS` mints the first org admin. Without it nobody holds a grant, and Governance
+and Usage tell you to ask an org admin who does not exist yet. To skip granting yourself,
+run `npm run init:env` (the signing secrets are still required) and boot with
+`LOS_DEMO=1 npm run dev` and `WEB_UI_DEMO=1 npm run serve`: the instance
+seeds teams, budgets and 30 days of usage, and the web UI signs you in as an org admin.
 
 Without `DATABASE_URL`, LOS runs fully in-memory — perfect for kicking the tires.
 Point `DATABASE_URL` at Postgres and sessions, runs, crons, memory, audit, and the

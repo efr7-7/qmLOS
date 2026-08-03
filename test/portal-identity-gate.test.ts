@@ -109,6 +109,22 @@ describe("user-scoped routes require a portal-verified actor when enforcement is
     assert.equal(r.status, 403, "restoring another person's memory must not pass on a bare valid actor");
   });
 
+  it("memory import binds its body principalId to the portal actor", async () => {
+    assert.equal((await post("/v1/memory/import", { principalId: "U2", apply: true, facts: ["probe"] })).status, 401);
+    const other = await post(
+      "/v1/memory/import",
+      { principalId: "U2", apply: true, facts: ["probe"] },
+      { "x-portal-identity": await token("U1") },
+    );
+    assert.equal(other.status, 403, "importing into another person's memory must not pass on a bare valid actor");
+    const mine = await post(
+      "/v1/memory/import",
+      { principalId: "U1", apply: true, facts: ["probe"] },
+      { "x-portal-identity": await token("U1") },
+    );
+    assert.ok(mine.status !== 401 && mine.status !== 403, "importing into my own memory reaches the handler");
+  });
+
   it("directory resolve requires a portal actor even though it names no identity field", async () => {
     assert.equal((await fetch(`${base}/v1/directory/resolve?q=alice`)).status, 401);
     const r = await fetch(`${base}/v1/directory/resolve?q=alice`, {

@@ -293,6 +293,7 @@ function sessionCookie(id: string): string {
 }
 
 const MAX_BODY_BYTES = 1_000_000;
+const MAX_IMPORT_BYTES = 32_000_000;
 const readBody = (req: IncomingMessage): Promise<string> => readBodyCapped(req, MAX_BODY_BYTES);
 
 const slackUrlCache = new LRUCache<string, { url: string | null }>({ max: 1, ttl: 5 * 60_000 });
@@ -1156,12 +1157,32 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
       return relay(res, r);
     }
 
+    if (method === "POST" && path === "/api/admin/utb/people") {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const r = await coreFetch(
+        "POST",
+        `/v1/admin/utb/people?scope=${encodeURIComponent(scope)}`,
+        (await readBody(req)) || "{}",
+      );
+      return relay(res, r);
+    }
+
     if (method === "GET" && path.startsWith("/api/admin/utb/people/")) {
       const scope = url.searchParams.get("scope") || `org:${ORG}`;
       const since = url.searchParams.get("since");
       const qs = new URLSearchParams({ scope, ...(since ? { since } : {}) });
       const principalId = path.slice("/api/admin/utb/people/".length);
       const r = await coreFetch("GET", `/v1/admin/utb/people/${encodeURIComponent(principalId)}?${qs.toString()}`);
+      return relay(res, r);
+    }
+
+    if (method === "DELETE" && path.startsWith("/api/admin/utb/people/")) {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const principalId = decodeURIComponent(path.slice("/api/admin/utb/people/".length));
+      const r = await coreFetch(
+        "DELETE",
+        `/v1/admin/utb/people/${encodeURIComponent(principalId)}?scope=${encodeURIComponent(scope)}`,
+      );
       return relay(res, r);
     }
 
@@ -1262,6 +1283,41 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
 
     if (method === "GET" && path === "/api/memory") {
       const r = await coreFetch("GET", `/v1/memory?principalId=${encodeURIComponent(user)}`);
+      return relay(res, r);
+    }
+    if (method === "POST" && path === "/api/memory/import") {
+      let filename = "upload";
+      let content: string | undefined;
+      let facts: string[] | undefined;
+      let apply: boolean;
+      try {
+        const p = JSON.parse(await readBodyCapped(req, MAX_IMPORT_BYTES)) as {
+          filename?: unknown;
+          content?: unknown;
+          facts?: unknown;
+          apply?: unknown;
+        };
+        if (Array.isArray(p.facts)) facts = p.facts.filter((f): f is string => typeof f === "string");
+        if (typeof p.content === "string") content = p.content;
+        if (content === undefined && facts === undefined)
+          return json(res, 400, { error: "bad_request", message: "content or facts required" });
+        if (typeof p.filename === "string" && p.filename.trim()) filename = p.filename.trim();
+        apply = p.apply === true;
+      } catch (e) {
+        if (e instanceof PayloadTooLargeError) throw e;
+        return json(res, 400, { error: "bad_request" });
+      }
+      const r = await coreFetch(
+        "POST",
+        "/v1/memory/import",
+        JSON.stringify({
+          principalId: user,
+          filename,
+          apply,
+          ...(facts ? { facts } : {}),
+          ...(content !== undefined ? { content } : {}),
+        }),
+      );
       return relay(res, r);
     }
     if (method === "GET" && path === "/api/memory/history") {

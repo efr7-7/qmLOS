@@ -304,13 +304,15 @@ export function createMessagingMethods(
 
     async upsertDirectory(members) {
       const previous = await deps.directory.list();
-      await deps.directory.replace(members);
-      const present = members.filter((m) => m.type === "internal").map((m) => m.principalId);
-      const presentSet = new Set(present);
-      const removed = previous.map((m) => m.principalId).filter((id) => !presentSet.has(id));
+      const merged = deps.rosterOverrides ? await deps.rosterOverrides.merge(members) : members;
+      await deps.directory.replace(merged);
+      const present = merged.filter((m) => m.type === "internal").map((m) => m.principalId);
+      const presentSet = new Set(present.map((id) => personKey(id)));
+      const removed = previous.map((m) => m.principalId).filter((id) => !presentSet.has(personKey(id)));
       const outcome = await deps.identity.recordDirectorySync(removed, present);
       const orgScope = scopeId("org", orgIdOf());
       for (const id of outcome.deactivated) {
+        await deps.admin?.revokeDepartedGrants?.(id).catch(() => undefined);
         deps.auditLog.record({
           at: Date.now(),
           principalId: id,

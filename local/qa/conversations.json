@@ -1,0 +1,11 @@
+[
+  {"uuid":"c1","name":"Stack setup","chat_messages":[
+    {"sender":"human","text":"I use Postgres 16 and I deploy every service to Fly.io."},
+    {"sender":"assistant","text":"Got it."},
+    {"sender":"human","text":"My timezone is Europe/Dublin and I prefer meetings before 11am."},
+    {"sender":"human","text":"ok thanks"}
+  ]},
+  {"uuid":"c2","name":"Writing","chat_messages":[
+    {"sender":"human","text":"I am a writer and I hate em-dashes in generated copy."}
+  ]}
+]

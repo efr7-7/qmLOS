@@ -1,9 +1,15 @@
+let deferredKey: string | null = null;
+
+function disabled(element: HTMLElement): boolean {
+  return (element as HTMLInputElement).disabled === true;
+}
+
 export function replaceChildrenPreservingFocus(container: HTMLElement, host: HTMLElement): void {
   const view = container.ownerDocument.defaultView;
   const active = container.contains(container.ownerDocument.activeElement)
     ? (container.ownerDocument.activeElement as HTMLElement)
     : null;
-  const key = active?.dataset.focusKey;
+  const key = active?.dataset.focusKey ?? deferredKey ?? undefined;
   const textControl = Boolean(
     view && active && (active instanceof view.HTMLInputElement || active instanceof view.HTMLTextAreaElement),
   );
@@ -19,10 +25,18 @@ export function replaceChildrenPreservingFocus(container: HTMLElement, host: HTM
   const next = [...container.querySelectorAll<HTMLElement>("[data-focus-key]")].find(
     (element) => element.dataset.focusKey === key,
   );
-  next?.focus();
+  if (!next) {
+    deferredKey = null;
+    return;
+  }
+  if (disabled(next)) {
+    deferredKey = key;
+    return;
+  }
+  deferredKey = null;
+  next.focus();
   if (
     view &&
-    next &&
     selection &&
     (next instanceof view.HTMLInputElement || next instanceof view.HTMLTextAreaElement) &&
     selection.start !== null &&
