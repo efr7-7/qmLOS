@@ -1799,7 +1799,7 @@ function rosterCard(rows: Person[]): TemplateResult {
     aria-expanded=${personFormOpen ? "true" : "false"}
     @click=${() => (personFormOpen ? closePersonForm() : openPersonForm())}
   >
-    ${icon(personFormOpen ? X : Plus, 14)}<span>${personFormOpen ? "Cancel" : "Add person"}</span>
+    ${icon(personFormOpen ? X : Plus, 14)}<span>Add person</span>
   </button>`;
   const active = rows.filter((p) => p.status !== "former");
   const formerRows = rows.filter((p) => p.status === "former");
@@ -1937,7 +1937,7 @@ function teamsCard(): TemplateResult {
     }}
   >
     ${icon(teamFormOpen && !teamDraft.editing ? X : Plus, 14)}
-    <span>${teamFormOpen && !teamDraft.editing ? "Cancel" : "New team"}</span>
+    <span>New team</span>
   </button>`;
   const body = html`
     ${teamFormOpen ? teamForm() : nothing} ${troubleStrip("team:form", "gov-trouble-card")}
@@ -2093,7 +2093,7 @@ function budgetsCard(): TemplateResult {
       openAllocForm("org");
     }}
   >
-    ${icon(allocFormOpen ? X : Plus, 14)}<span>${allocFormOpen ? "Cancel" : "New budget"}</span>
+    ${icon(allocFormOpen ? X : Plus, 14)}<span>New budget</span>
   </button>`;
   const body = html`
     ${allocFormOpen ? allocForm() : nothing} ${troubleStrip("alloc:form", "gov-trouble-card")}

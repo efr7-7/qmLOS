@@ -8429,6 +8429,10 @@ select:focus-visible {
 .gov-person-form .gov-input {
   width: 130px;
 }
+/* The id field carries the longest placeholder in the form; 130px clipped it mid-word. */
+.gov-person-form .gov-person-id {
+  width: 196px;
+}
 .gov-stale {
   max-width: 960px;
   margin: -6px auto 14px;
