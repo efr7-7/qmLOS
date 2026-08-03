@@ -696,6 +696,7 @@ async function addPerson(draft: PersonDraft): Promise<void> {
       discard: null,
     });
     draw();
+    focusByKey("person-new-amount");
     return;
   }
   const team = draft.teamId ? (teams ?? []).find((t) => t.id === draft.teamId) : null;
@@ -840,6 +841,7 @@ async function saveTeam(): Promise<void> {
   if (!id) {
     trouble.set("team:form", { tone: "error", text: "A team needs an id.", retry: null, discard: null });
     draw();
+    focusByKey("team-new-id");
     return;
   }
   const clash = editing ? null : ((teams ?? []).find((t) => t.id === id) ?? null);
@@ -851,6 +853,7 @@ async function saveTeam(): Promise<void> {
       discard: null,
     });
     draw();
+    focusByKey("team-new-id");
     return;
   }
   const ifMatch = editing ? teamDraft.membersVersion : "";
@@ -1123,6 +1126,7 @@ async function saveAlloc(): Promise<void> {
   if (!Number.isFinite(limitUsd) || limitUsd <= 0) {
     trouble.set("alloc:form", { tone: "error", text: "Enter a budget above zero.", retry: null, discard: null });
     draw();
+    focusByKey("alloc-amount");
     return;
   }
   const win = WINDOWS.find((w) => w.key === allocDraft.window) ?? WINDOWS[2]!;
@@ -1691,10 +1695,10 @@ function peopleTable(rows: Person[]): TemplateResult {
                         <option value="">Unassigned</option>
                         ${(teams ?? []).map((t) => html`<option value=${t.id} ?selected=${t.id === p.teamId}>${t.name}</option>`)}
                         ${
-                    p.teamId && !(teams ?? []).some((t) => t.id === p.teamId)
-                      ? html`<option value=${p.teamId} selected>${p.teamName ?? p.teamId} (unknown)</option>`
-                      : nothing
-                  }
+                          p.teamId && !(teams ?? []).some((t) => t.id === p.teamId)
+                            ? html`<option value=${p.teamId} selected>${p.teamName ?? p.teamId} (unknown)</option>`
+                            : nothing
+                        }
                       </select>`
                 }
               </td>
@@ -1734,10 +1738,10 @@ function peopleTable(rows: Person[]): TemplateResult {
                         aria-label=${`Re-add ${who}`}
                         ?disabled=${working}
                         @click=${() =>
-                            openPersonForm({
-                              principalId: p.principalId,
-                              displayName: p.displayName ?? p.principalId,
-                            })}
+                          openPersonForm({
+                            principalId: p.principalId,
+                            displayName: p.displayName ?? p.principalId,
+                          })}
                       >
                         ${icon(Plus, 13)}<span>Re-add</span>
                       </button>`

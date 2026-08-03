@@ -468,3 +468,58 @@ test("a failed refresh keeps the last good data on screen and labels it as stale
     await vite.close();
   }
 });
+
+test("a rejected form puts the cursor on the field at fault, never on the body", async () => {
+  installDom();
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input);
+    if ((init?.method ?? "GET") !== "GET") return Response.json({ ok: true });
+    if (path.includes("/api/admin/utb/people/")) return Response.json(DETAIL);
+    if (path.includes("/api/admin/utb/people")) return Response.json(PEOPLE);
+    if (path.includes("/api/admin/utb/teams")) return Response.json(TEAMS);
+    if (path.includes("/api/admin/utb/allocations")) return Response.json(ALLOCATIONS);
+    if (path.includes("/api/admin/receipts")) return Response.json(RECEIPTS);
+    throw new Error(`Unexpected request: ${path}`);
+  }) as typeof fetch;
+
+  const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
+  try {
+    const { appState } = await vite.ssrLoadModule("/src/shell-state.ts");
+    const { renderGovernance, resetGovernanceState } = await vite.ssrLoadModule("/src/governance.ts");
+    appState.me = { user: "demo", org: "acme" };
+    appState.currentView = "governance";
+    appState.mainEl = document.querySelector("#main");
+    resetGovernanceState();
+    await renderGovernance();
+
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
+    const focusKey = (): string | null => document.activeElement?.getAttribute?.("data-focus-key") ?? null;
+
+    // A team with no id is refused; the cursor belongs in the id field.
+    cardAction("New team").click();
+    await settle();
+    [...document.querySelectorAll<HTMLButtonElement>(".gov-team-form .gov-primary")].at(-1)!.click();
+    await settle();
+    assert.match(
+      document.querySelector(".gov-trouble")?.textContent ?? "",
+      /A team needs an id/,
+      "the refusal is stated",
+    );
+    assert.equal(focusKey(), "team-new-id", "focus is on the field at fault, not the body");
+
+    // Same contract for a budget of zero.
+    resetGovernanceState();
+    await renderGovernance();
+    cardAction("New budget").click();
+    await settle();
+    const amount = document.querySelector<HTMLInputElement>(".gov-alloc-amount")!;
+    amount.value = "0";
+    amount.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    [...document.querySelectorAll<HTMLButtonElement>(".gov-alloc-form .gov-primary")].at(-1)!.click();
+    await settle();
+    assert.match(document.querySelector(".gov-trouble")?.textContent ?? "", /above zero/, "the refusal is stated");
+    assert.equal(focusKey(), "alloc-amount", "focus is on the amount, not the body");
+  } finally {
+    await vite.close();
+  }
+});
