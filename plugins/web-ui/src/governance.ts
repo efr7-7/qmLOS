@@ -6,6 +6,7 @@ import { subjectLabel } from "./subject-label";
 import { icon, initials, relTime } from "./ui";
 import { playHue } from "./playground";
 import { emptyPlayground } from "./playground";
+import { loadReceipts, receiptList, type ReceiptRow } from "./receipt";
 import { appState, replacePanePreservingFocus } from "./shell";
 
 interface Person {
@@ -152,6 +153,7 @@ let peopleTotal = 0;
 let teams: Team[] | null = null;
 let allocations: Allocation[] | null = null;
 let detail: PersonDetail | null = null;
+let detailReceipts: ReceiptRow[] | null = null;
 let openPerson: string | null = null;
 let detailLoading = false;
 let forbidden = false;
@@ -177,6 +179,7 @@ export function resetGovernanceState(): void {
   teams = null;
   allocations = null;
   detail = null;
+  detailReceipts = null;
   openPerson = null;
   detailLoading = false;
   forbidden = false;
@@ -510,9 +513,13 @@ async function loadDetail(principalId: string, quiet = false): Promise<void> {
   detailLoading = !quiet;
   if (!quiet) draw();
   try {
-    const d = await api<PersonDetail>(`/api/admin/utb/people/${encodeURIComponent(principalId)}?${scopeQuery()}`);
+    const [d, r] = await Promise.all([
+      api<PersonDetail>(`/api/admin/utb/people/${encodeURIComponent(principalId)}?${scopeQuery()}`),
+      loadReceipts({ principalId, limit: 5 }).catch(() => [] as ReceiptRow[]),
+    ]);
     if (openPerson !== principalId) return;
     detail = d;
+    detailReceipts = r;
   } catch (e) {
     if (openPerson !== principalId) return;
     detail = null;
@@ -530,11 +537,13 @@ function togglePerson(principalId: string): void {
   if (openPerson === principalId) {
     openPerson = null;
     detail = null;
+    detailReceipts = null;
     draw();
     return;
   }
   openPerson = principalId;
   detail = null;
+  detailReceipts = null;
   void loadDetail(principalId);
 }
 
@@ -762,7 +771,15 @@ async function removePerson(person: Person): Promise<void> {
       pinned = pinned.filter((id) => id !== principalId);
       people = (people ?? []).map((p) =>
         p.principalId === principalId
-          ? { ...p, status: "former", teamId: null, teamName: null, isAdmin: false, adminRole: null, hasOwnAllocation: false }
+          ? {
+              ...p,
+              status: "former",
+              teamId: null,
+              teamName: null,
+              isAdmin: false,
+              adminRole: null,
+              hasOwnAllocation: false,
+            }
           : p,
       );
       allocations = (allocations ?? []).filter((a) => String(a.subject ?? "") !== `principal:${principalId}`);
@@ -1383,6 +1400,10 @@ function drillDown(person: Person): TemplateResult {
       }
     </div>
     <div class="gov-drill-section">
+      <div class="gov-drill-kicker">Recent receipts</div>
+      ${receiptList(detailReceipts ?? [], { showWho: false })}
+    </div>
+    <div class="gov-drill-section">
       <div class="gov-drill-kicker">Where the spend went</div>
       <div class="gov-break-grid">
         ${breakdownList(b.byModel ?? [], "By model")} ${breakdownList(b.byHarness ?? [], "By harness")}
@@ -1553,9 +1574,7 @@ function removalConsequences(person: Person): string[] {
     "Signs them out — no new turns, and their session capability stops issuing.",
     ...(person.isAdmin ? ["Revokes their org_admin grant."] : []),
     ...(person.hasOwnAllocation ? ["Deletes their personal budget."] : []),
-    ...(team
-      ? [`Removes them from ${team}, so their past spend stops counting against that team's cap.`]
-      : []),
+    ...(team ? [`Removes them from ${team}, so their past spend stops counting against that team's cap.`] : []),
     "Keeps their spend in the org total — they move to Former members.",
   ];
 }
@@ -1658,37 +1677,45 @@ function peopleTable(rows: Person[]): TemplateResult {
                 </span>
               </td>
               <td class="gov-col-team">
-                ${former ? html`<span class="gov-dim">—</span>` : html`<select
-                  class="gov-select"
-                  data-focus-key=${`team-of:${p.principalId}`}
-                  aria-label=${`Team for ${who}`}
-                  ?disabled=${working}
-                  .value=${p.teamId ?? ""}
-                  @change=${(e: Event) => void assignTeam(p, (e.target as HTMLSelectElement).value)}
-                >
-                  <option value="">Unassigned</option>
-                  ${(teams ?? []).map((t) => html`<option value=${t.id} ?selected=${t.id === p.teamId}>${t.name}</option>`)}
-                  ${
+                ${
+                  former
+                    ? html`<span class="gov-dim">—</span>`
+                    : html`<select
+                        class="gov-select"
+                        data-focus-key=${`team-of:${p.principalId}`}
+                        aria-label=${`Team for ${who}`}
+                        ?disabled=${working}
+                        .value=${p.teamId ?? ""}
+                        @change=${(e: Event) => void assignTeam(p, (e.target as HTMLSelectElement).value)}
+                      >
+                        <option value="">Unassigned</option>
+                        ${(teams ?? []).map((t) => html`<option value=${t.id} ?selected=${t.id === p.teamId}>${t.name}</option>`)}
+                        ${
                     p.teamId && !(teams ?? []).some((t) => t.id === p.teamId)
                       ? html`<option value=${p.teamId} selected>${p.teamName ?? p.teamId} (unknown)</option>`
                       : nothing
                   }
-                </select>`}
+                      </select>`
+                }
               </td>
               <td class="gov-col-admin">
-                ${former ? html`<span class="gov-dim">—</span>` : html`<button
-                  class=${`web-only-toggle gov-switch ${p.isAdmin ? "on" : ""}`}
-                  type="button"
-                  role="switch"
-                  data-focus-key=${`admin-of:${p.principalId}`}
-                  aria-checked=${p.isAdmin ? "true" : "false"}
-                  aria-label=${`Admin for ${who}`}
-                  ?disabled=${working || (isSelf && p.isAdmin === true)}
-                  title=${adminTitle(isSelf, p.isAdmin === true)}
-                  @click=${() => void toggleAdmin(p)}
-                >
-                  <span class="mini-switch"><span class="mini-knob"></span></span>
-                </button>`}
+                ${
+                  former
+                    ? html`<span class="gov-dim">—</span>`
+                    : html`<button
+                        class=${`web-only-toggle gov-switch ${p.isAdmin ? "on" : ""}`}
+                        type="button"
+                        role="switch"
+                        data-focus-key=${`admin-of:${p.principalId}`}
+                        aria-checked=${p.isAdmin ? "true" : "false"}
+                        aria-label=${`Admin for ${who}`}
+                        ?disabled=${working || (isSelf && p.isAdmin === true)}
+                        title=${adminTitle(isSelf, p.isAdmin === true)}
+                        @click=${() => void toggleAdmin(p)}
+                      >
+                        <span class="mini-switch"><span class="mini-knob"></span></span>
+                      </button>`
+                }
               </td>
               <td class="usage-cost gov-spend">
                 <span class="gov-spend-inner">${meter(n(p.costUsd) / maxSpend, "inline")}${money(p.costUsd)}</span>
@@ -1700,32 +1727,32 @@ function peopleTable(rows: Person[]): TemplateResult {
                 ${
                   former
                     ? html`<button
-                          class="gov-ghost tiny"
-                          type="button"
-                          data-focus-key=${`readd-of:${p.principalId}`}
-                          title=${`Put ${who} back on the roster`}
-                          aria-label=${`Re-add ${who}`}
-                          ?disabled=${working}
-                          @click=${() =>
+                        class="gov-ghost tiny"
+                        type="button"
+                        data-focus-key=${`readd-of:${p.principalId}`}
+                        title=${`Put ${who} back on the roster`}
+                        aria-label=${`Re-add ${who}`}
+                        ?disabled=${working}
+                        @click=${() =>
                             openPersonForm({
                               principalId: p.principalId,
                               displayName: p.displayName ?? p.principalId,
                             })}
-                        >
-                          ${icon(Plus, 13)}<span>Re-add</span>
-                        </button>`
+                      >
+                        ${icon(Plus, 13)}<span>Re-add</span>
+                      </button>`
                     : html`<button
-                          class="gov-ghost tiny gov-icon-only"
-                          type="button"
-                          data-focus-key=${`kill-of:${p.principalId}`}
-                          title=${isSelf ? "You can't remove yourself" : `Remove ${who} from the roster`}
-                          aria-label=${`Remove ${who}`}
-                          aria-expanded=${confirmPerson === p.principalId ? "true" : "false"}
-                          ?disabled=${working || isSelf}
-                          @click=${() => openRemoveConfirm(p)}
-                        >
-                          ${icon(Trash2, 14)}
-                        </button>`
+                        class="gov-ghost tiny gov-icon-only"
+                        type="button"
+                        data-focus-key=${`kill-of:${p.principalId}`}
+                        title=${isSelf ? "You can't remove yourself" : `Remove ${who} from the roster`}
+                        aria-label=${`Remove ${who}`}
+                        aria-expanded=${confirmPerson === p.principalId ? "true" : "false"}
+                        ?disabled=${working || isSelf}
+                        @click=${() => openRemoveConfirm(p)}
+                      >
+                        ${icon(Trash2, 14)}
+                      </button>`
                 }
               </td>
               <td class="gov-col-chev">
@@ -1787,9 +1814,7 @@ function rosterCard(rows: Person[]): TemplateResult {
     ${
       formerRows.length
         ? html`<details class="gov-former">
-            <summary>
-              Former members · ${formerRows.length} · spend retained ${money(formerSpend)}
-            </summary>
+            <summary>Former members · ${formerRows.length} · spend retained ${money(formerSpend)}</summary>
             <p class="gov-former-note">
               Off the roster and signed out. Their spend stays in the org total and no longer counts against a team cap.
             </p>
@@ -1958,8 +1983,7 @@ function teamsCard(): TemplateResult {
                     ${icon(Trash2, 14)}
                   </button>
                 </div>
-                ${confirmTeam === t.id ? teamConfirm(t, members.length, spendOf(t.id)) : nothing}
-                ${troubleStrip(key)}
+                ${confirmTeam === t.id ? teamConfirm(t, members.length, spendOf(t.id)) : nothing} ${troubleStrip(key)}
               </div>`;
             })}
           </div>`

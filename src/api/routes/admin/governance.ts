@@ -43,7 +43,7 @@ function windowSince(url: URL): number {
   return Number.isFinite(raw) && raw > 0 ? raw : Date.now() - DEFAULT_WINDOW_MS;
 }
 
-function foldTotals(rows: readonly TotalsRow[]): TokenLedgerTotals {
+export function foldTotals(rows: readonly TotalsRow[]): TokenLedgerTotals {
   const out = emptyTotals();
   for (const row of rows) {
     out.calls += row.calls;
@@ -57,7 +57,7 @@ function foldTotals(rows: readonly TotalsRow[]): TokenLedgerTotals {
   return out;
 }
 
-function enrich<T extends TokenLedgerTotals>(
+export function enrich<T extends TokenLedgerTotals>(
   totals: T,
 ): T & {
   totalTokens: number;
@@ -74,6 +74,50 @@ function enrich<T extends TokenLedgerTotals>(
     cacheReadShare: inputSide > 0 ? totals.cacheRead / inputSide : null,
     estimatedShare: totals.calls > 0 ? totals.estimatedCalls / totals.calls : 0,
   };
+}
+
+export interface GoverningAllocation {
+  id: string;
+  subject: AllocationSubject;
+  kind: "org" | "team" | "principal";
+  limitUsd: number;
+  windowMs: number;
+  hard: boolean;
+  spentUsd: number | null;
+  remainingUsd: number | null;
+  utilization: number | null;
+  exceeded: boolean | null;
+}
+
+export async function governingAllocations(
+  deps: ApiCtx["deps"],
+  principalId: string,
+  ancestry: readonly string[],
+  now: number,
+): Promise<GoverningAllocation[]> {
+  const subjects: AllocationSubject[] = ["org", `principal:${principalId}`];
+  for (const ancestor of ancestry) subjects.push(`team:${ancestor}`);
+  const governing = (await deps.allocations?.forSubjects(subjects).catch(() => [])) ?? [];
+  return Promise.all(
+    governing.map(async (allocation) => {
+      const spentUsd =
+        deps.teams && deps.tokenLedger
+          ? await allocationSpendUsd({ teams: deps.teams, ledger: deps.tokenLedger }, allocation, now).catch(() => null)
+          : null;
+      return {
+        id: allocation.id,
+        subject: allocation.subject,
+        kind: allocationKind(allocation.subject),
+        limitUsd: allocation.limitUsd,
+        windowMs: allocation.windowMs,
+        hard: allocation.hard,
+        spentUsd,
+        remainingUsd: spentUsd === null ? null : allocation.limitUsd - spentUsd,
+        utilization: spentUsd === null || allocation.limitUsd <= 0 ? null : spentUsd / allocation.limitUsd,
+        exceeded: spentUsd === null ? null : spentUsd >= allocation.limitUsd,
+      };
+    }),
+  );
 }
 
 interface PersonRow {
@@ -286,8 +330,12 @@ export async function deleteUtbPerson(ctx: ApiCtx): Promise<void> {
     consequences: [
       "signs them out and stops new turns — they can no longer get a session capability",
       ...(status?.isAdmin === true ? ["revokes their org_admin grant"] : []),
-      ...(own.length ? [`deletes ${own.length === 1 ? "their personal budget" : `their ${own.length} personal budgets`}`] : []),
-      ...(teamId ? [`removes them from ${teamLabel}, so their past spend no longer counts against that team's cap`] : []),
+      ...(own.length
+        ? [`deletes ${own.length === 1 ? "their personal budget" : `their ${own.length} personal budgets`}`]
+        : []),
+      ...(teamId
+        ? [`removes them from ${teamLabel}, so their past spend no longer counts against that team's cap`]
+        : []),
       "keeps their spend history in the org total, listed under former members",
     ],
   });
@@ -394,35 +442,12 @@ export async function utbPerson(ctx: ApiCtx): Promise<void> {
   const teamNames = new Map(allTeams.map((team) => [team.id, team.name] as const));
   const ancestry = teamId ? ((await deps.teams?.ancestry(teamId).catch(() => [])) ?? []) : [];
 
-  const subjects: AllocationSubject[] = ["org", `principal:${principalId}`];
-  for (const ancestor of ancestry) subjects.push(`team:${ancestor}`);
-  const governing = (await deps.allocations?.forSubjects(subjects).catch(() => [])) ?? [];
-  const ownAllocation = governing.some((a) => a.subject === `principal:${principalId}`);
+  const allocations = await governingAllocations(deps, principalId, ancestry, now);
+  const ownAllocation = allocations.some((a) => a.subject === `principal:${principalId}`);
 
   if (totals.calls === 0 && !member && !teamId && !ownAllocation && status?.isAdmin !== true && !latest.length) {
     return sendJson(res, 404, { error: "not_found", message: `no person ${principalId}` });
   }
-
-  const allocations = await Promise.all(
-    governing.map(async (allocation) => {
-      const spentUsd =
-        deps.teams && deps.tokenLedger
-          ? await allocationSpendUsd({ teams: deps.teams, ledger: deps.tokenLedger }, allocation, now).catch(() => null)
-          : null;
-      return {
-        id: allocation.id,
-        subject: allocation.subject,
-        kind: allocationKind(allocation.subject),
-        limitUsd: allocation.limitUsd,
-        windowMs: allocation.windowMs,
-        hard: allocation.hard,
-        spentUsd,
-        remainingUsd: spentUsd === null ? null : allocation.limitUsd - spentUsd,
-        utilization: spentUsd === null || allocation.limitUsd <= 0 ? null : spentUsd / allocation.limitUsd,
-        exceeded: spentUsd === null ? null : spentUsd >= allocation.limitUsd,
-      };
-    }),
-  );
 
   const outcomeRecords =
     (await deps.runOutcomes?.list({ since, principalId, limit: OUTCOME_SCAN_LIMIT }).catch(() => [])) ?? [];

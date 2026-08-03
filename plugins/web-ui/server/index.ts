@@ -1149,6 +1149,29 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
       return relay(res, r);
     }
 
+    if (method === "GET" && path === "/api/admin/receipts") {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const limit = url.searchParams.get("limit");
+      const principalId = url.searchParams.get("principalId");
+      const qs = new URLSearchParams({
+        scope,
+        ...(limit ? { limit } : {}),
+        ...(principalId ? { principalId } : {}),
+      });
+      const r = await coreFetch("GET", `/v1/admin/receipts?${qs.toString()}`);
+      return relay(res, r);
+    }
+
+    if (method === "GET" && path.startsWith("/api/admin/receipts/")) {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const runId = decodeURIComponent(path.slice("/api/admin/receipts/".length));
+      const r = await coreFetch(
+        "GET",
+        `/v1/admin/receipts/${encodeURIComponent(runId)}?scope=${encodeURIComponent(scope)}`,
+      );
+      return relay(res, r);
+    }
+
     if (method === "GET" && path === "/api/admin/utb/people") {
       const scope = url.searchParams.get("scope") || `org:${ORG}`;
       const since = url.searchParams.get("since");

@@ -5,6 +5,7 @@ import { errMessage } from "../../chassis/src/errors";
 import { subjectLabel, type SubjectPerson, type SubjectTeam } from "./subject-label";
 import { icon } from "./ui";
 import { emptyPlayground } from "./playground";
+import { loadReceipts, receiptList, type ReceiptRow } from "./receipt";
 import { appState, replacePanePreservingFocus } from "./shell";
 
 interface UsageRow {
@@ -70,6 +71,7 @@ let leaderboard: Leaderboard | null = null;
 let allocations: Allocation[] | null = null;
 let teams: SubjectTeam[] | null = null;
 let people: SubjectPerson[] | null = null;
+let receipts: ReceiptRow[] | null = null;
 let notice = "";
 
 export function resetUsageState(): void {
@@ -79,6 +81,7 @@ export function resetUsageState(): void {
   allocations = null;
   teams = null;
   people = null;
+  receipts = null;
   notice = "";
 }
 
@@ -432,6 +435,17 @@ function orgSection(o: OrgUtb, board: Leaderboard | null): TemplateResult {
   </section>`;
 }
 
+function receiptsSection(rows: ReceiptRow[]): TemplateResult {
+  return html`<section class="usage-section">
+    ${kicker("Receipts · a dollar traced to what it bought")}
+    ${card(
+      "Recent work",
+      "One run, one receipt — the ask, the engine, the tokens, and the budget it drew down.",
+      receiptList(rows),
+    )}
+  </section>`;
+}
+
 function usageIsEmpty(): boolean {
   return Boolean(usage) && !usage?.byModel?.length && !usage?.byPhase?.length && n(usage?.totalCostUsd) <= 0;
 }
@@ -460,7 +474,8 @@ function drawUsage(loading = false): void {
       </header>
       ${notice || loading ? html`<div class="status">${notice || "Loading…"}</div>` : nothing}
       ${usageIsEmpty() && !loading ? emptyPlayground("pulse", "All quiet on the meter", "Tokens will show up here the moment work starts.") : nothing}
-      ${usage && !usageIsEmpty() ? personalSection(usage) : nothing} ${org ? orgSection(org, leaderboard) : nothing}
+      ${usage && !usageIsEmpty() ? personalSection(usage) : nothing}
+      ${receipts && !loading ? receiptsSection(receipts) : nothing} ${org ? orgSection(org, leaderboard) : nothing}
     `,
     host,
   );
@@ -473,13 +488,14 @@ export async function renderUsage(): Promise<void> {
   notice = "";
   drawUsage(true);
   const orgScope = `org:${appState.me?.org ?? ""}`;
-  const [mine, utb, board, allocs, teamRows, peopleRows] = await Promise.allSettled([
+  const [mine, utb, board, allocs, teamRows, peopleRows, receiptRows] = await Promise.allSettled([
     api<UsageSummary>("/api/usage"),
     api<OrgUtb>(`/api/admin/utb?scope=${encodeURIComponent(orgScope)}`),
     api<Leaderboard>("/api/admin/utb/leaderboard"),
     api<{ allocations: Allocation[] }>("/api/admin/utb/allocations"),
     api<{ teams?: SubjectTeam[] }>(`/api/admin/utb/teams?scope=${encodeURIComponent(orgScope)}`),
     api<{ people?: SubjectPerson[] }>(`/api/admin/utb/people?scope=${encodeURIComponent(orgScope)}`),
+    loadReceipts({ limit: 6 }),
   ]);
   if (seq !== appState.viewRenderSeq || appState.currentView !== "usage") return;
   teams = teamRows.status === "fulfilled" ? (teamRows.value.teams ?? null) : null;
@@ -492,5 +508,6 @@ export async function renderUsage(): Promise<void> {
   org = utb.status === "fulfilled" ? utb.value : null;
   leaderboard = board.status === "fulfilled" ? board.value : null;
   allocations = allocs.status === "fulfilled" ? (allocs.value.allocations ?? null) : null;
+  receipts = receiptRows.status === "fulfilled" ? receiptRows.value : null;
   drawUsage();
 }

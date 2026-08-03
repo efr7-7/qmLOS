@@ -73,6 +73,7 @@ import { renderMemory, resetMemoryState } from "./memory";
 import { renderSkills } from "./skills";
 import { renderUsage, resetUsageState } from "./usage";
 import { renderGovernance, resetGovernanceState } from "./governance";
+import { resetReceiptState } from "./receipt";
 import { contextsState, ensureContexts, renderContexts, resetContextsState } from "./contexts";
 import { appState, isView, type AuthMode, type Me, type View } from "./shell-state";
 import { trapDialogFocus } from "./dialog-focus";
@@ -218,6 +219,7 @@ export async function signOut(): Promise<void> {
   resetMemoryState();
   resetUsageState();
   resetGovernanceState();
+  resetReceiptState();
   resetContextsState();
   resetKeychainState();
   resetComposer();

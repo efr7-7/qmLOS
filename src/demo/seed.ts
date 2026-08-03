@@ -11,7 +11,9 @@ export interface DemoSeedStores {
   allocations: AllocationStore;
   runOutcomes: RunOutcomeStore;
   adminGrants: AdminGrantStore;
-  directory?: { replace(members: Array<{ principalId: string; displayName: string; type: "internal" }>): Promise<void> };
+  directory?: {
+    replace(members: Array<{ principalId: string; displayName: string; type: "internal" }>): Promise<void>;
+  };
   orgId: string;
 }
 
@@ -191,24 +193,51 @@ export async function seedDemoData(stores: DemoSeedStores, opts: DemoSeedOptions
   const ats: number[] = [];
   for (let i = 0; i < ledgerTarget; i++) ats.push(now - Math.floor(rand() * 30 * DAY_MS));
   ats.sort((a, b) => a - b);
+  const entries: TokenLedgerEntry[] = [];
   for (const at of ats) {
     const entry = ledgerEntryAt(rand, at, rand() < CLAUDE_CODE_SHARE);
     totalCostUsd += entry.costUsd;
-    await stores.tokenLedger.record(entry);
+    entries.push(entry);
   }
 
+  const unclaimed = new Map<string, TokenLedgerEntry[]>();
+  for (const principal of PRINCIPALS) unclaimed.set(principal.id, []);
+  for (const entry of entries) unclaimed.get(entry.principalId)?.push(entry);
+
+  const floor = now - 30 * DAY_MS;
+  const runs: Array<{ runId: string; entries: TokenLedgerEntry[] }> = [];
   for (let i = 0; i < outcomeTarget; i++) {
-    const principal = pick(rand, PRINCIPALS);
-    const outcome = pick(rand, OUTCOMES);
+    const pool = unclaimed.get(pick(rand, PRINCIPALS).id) ?? [];
+    const wanted = 2 + Math.floor(rand() * 4);
+    if (pool.length < wanted) continue;
+    const claimed = pool.splice(Math.floor(rand() * (pool.length - wanted + 1)), wanted);
+    const runId = `demo-run-${i + 1}`;
+    const sessionId = `demo-thread-${i + 1}`;
+    const harness = claimed[claimed.length - 1]!.harness ?? "claude";
+    const finishedAt = claimed[claimed.length - 1]!.at;
+    claimed.forEach((entry, step) => {
+      entry.runId = runId;
+      entry.sessionId = sessionId;
+      entry.harness = harness;
+      entry.at = Math.max(floor, finishedAt - (claimed.length - 1 - step) * Math.round(40_000 + rand() * 140_000));
+    });
+    runs.push({ runId, entries: claimed });
+  }
+
+  entries.sort((a, b) => a.at - b.at);
+  for (const entry of entries) await stores.tokenLedger.record(entry);
+
+  for (const run of runs) {
+    const finished = run.entries[run.entries.length - 1]!;
     await stores.runOutcomes.record({
-      runId: `demo-run-${i + 1}`,
-      principalId: principal.id,
-      scopeLabel: personalScope(principal.id),
-      outcome: outcome.kind,
-      costUsd: round4(outcome.costScale * (0.15 + rand() * 1.1)),
-      at: now - Math.floor(rand() * 30 * DAY_MS),
+      runId: run.runId,
+      principalId: finished.principalId,
+      scopeLabel: personalScope(finished.principalId),
+      outcome: pick(rand, OUTCOMES).kind,
+      costUsd: round4(run.entries.reduce((sum, entry) => sum + entry.costUsd, 0)),
+      at: finished.at,
     });
   }
 
-  return { seeded: true, ledgerEntries: ledgerTarget, runOutcomes: outcomeTarget, totalCostUsd: round4(totalCostUsd) };
+  return { seeded: true, ledgerEntries: ledgerTarget, runOutcomes: runs.length, totalCostUsd: round4(totalCostUsd) };
 }

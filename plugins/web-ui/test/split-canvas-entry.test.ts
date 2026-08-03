@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const read = (f: string): string => readFileSync(new URL(`../src/${f}`, import.meta.url), "utf8");
+// Normalise line endings: these assertions are about code structure, and a CRLF
+// checkout on Windows must not change what they mean.
+const read = (f: string): string => readFileSync(new URL(`../src/${f}`, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const split = read("split.ts");
 const sessions = read("sessions.ts");
 const shell = read("shell.ts");
