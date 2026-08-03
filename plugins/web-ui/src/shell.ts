@@ -18,7 +18,7 @@ import {
   ShieldCheck,
   type IconNode,
 } from "lucide";
-import "@mariozechner/mini-lit/dist/ThemeToggle.js";
+import { initTheme, themeToggle } from "./theme";
 import {
   api,
   fetchRuntimeConfig,
@@ -115,6 +115,9 @@ export function syncUrlFromState(): void {
 
 const appEl = document.getElementById("app");
 if (!appEl) throw new Error("missing #app");
+
+// Paint the stored (or system) theme before first render, so there is no light flash.
+initTheme();
 
 const narrowViewport = window.matchMedia("(max-width: 860px)");
 let sidebarOpen = !narrowViewport.matches;
@@ -587,7 +590,7 @@ export function mountShell(): void {
             <a class="icon-btn subtle" href=${ADMIN_HOME_URL} title="Back to admin" aria-label="Back to admin"
               >${icon(ArrowLeft, 17)}</a
             >
-            <theme-toggle></theme-toggle>
+            ${themeToggle()}
             <button class="icon-btn subtle" title="Sign out" aria-label="Sign out" @click=${signOut}>
               ${icon(LogOut, 17)}
             </button>

@@ -20,7 +20,7 @@ export interface RunOutcomeTotals {
 
 export interface RunOutcomeStore {
   record(record: RunOutcomeRecord): Promise<void>;
-  list(opts?: { since?: number; principalId?: string; limit?: number }): Promise<RunOutcomeRecord[]>;
+  list(opts?: { since?: number; principalId?: string; runId?: string; limit?: number }): Promise<RunOutcomeRecord[]>;
   summary(opts?: { since?: number }): Promise<Array<{ principalId: string } & RunOutcomeTotals>>;
 }
 
@@ -56,6 +56,7 @@ export function createMemoryRunOutcomeStore(opts: { max?: number } = {}): RunOut
         const record = records[i]!;
         if (listOpts.since !== undefined && record.at < listOpts.since) continue;
         if (listOpts.principalId !== undefined && record.principalId !== listOpts.principalId) continue;
+        if (listOpts.runId !== undefined && record.runId !== listOpts.runId) continue;
         out.push(record);
       }
       return Promise.resolve(out);

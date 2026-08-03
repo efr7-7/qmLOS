@@ -41,6 +41,10 @@ export function createPostgresTokenLedger(connectionString: string): TokenLedger
     `CREATE INDEX IF NOT EXISTS token_ledger_by_at ON token_ledger(at)`,
     `ALTER TABLE token_ledger ADD COLUMN IF NOT EXISTS source TEXT`,
     `ALTER TABLE token_ledger ADD COLUMN IF NOT EXISTS harness TEXT`,
+    // Opening one receipt filters this table by run_id several times over. Partial, because
+    // only metered work that belongs to a run is ever looked up this way.
+    `CREATE INDEX IF NOT EXISTS token_ledger_by_run ON token_ledger(run_id) WHERE run_id IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS token_ledger_by_session ON token_ledger(session_id) WHERE session_id IS NOT NULL`,
   ]);
 
   function where(opts: TokenLedgerQuery): { clause: string; params: unknown[] } {

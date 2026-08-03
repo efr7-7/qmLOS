@@ -40,22 +40,24 @@ export function createPostgresRunOutcomeStore(connectionString: string): RunOutc
         params.push(opts.principalId);
         conds.push(`principal_id = $${params.length}`);
       }
+      if (opts.runId !== undefined) {
+        params.push(opts.runId);
+        conds.push(`run_id = $${params.length}`); // run_id is the primary key
+      }
       params.push(opts.limit ?? 1_000);
       const rows = await q(
         `SELECT * FROM run_outcomes ${conds.length ? `WHERE ${conds.join(" AND ")}` : ""}
          ORDER BY at DESC LIMIT $${params.length}`,
         params,
       );
-      return rows.map(
-        (row): RunOutcomeRecord => ({
-          runId: String(row.run_id),
-          principalId: String(row.principal_id),
-          scopeLabel: String(row.scope_label) as ScopeId,
-          outcome: String(row.outcome) as RunOutcomeKind,
-          costUsd: Number(row.cost_usd),
-          at: Number(row.at),
-        }),
-      );
+      return rows.map((row): RunOutcomeRecord => ({
+        runId: String(row.run_id),
+        principalId: String(row.principal_id),
+        scopeLabel: String(row.scope_label) as ScopeId,
+        outcome: String(row.outcome) as RunOutcomeKind,
+        costUsd: Number(row.cost_usd),
+        at: Number(row.at),
+      }));
     },
     async summary(opts = {}) {
       const params: unknown[] = [];
