@@ -14,6 +14,7 @@ export interface TokenLedgerEntry {
   model: string;
   phase: TokenLedgerPhase;
   source?: string;
+  harness?: string;
   input: number;
   output: number;
   cacheRead: number;
@@ -32,7 +33,7 @@ export interface TokenLedgerTotals {
   estimatedCalls: number;
 }
 
-export type TokenLedgerGroupBy = "principal" | "scope" | "model" | "phase" | "source";
+export type TokenLedgerGroupBy = "principal" | "scope" | "model" | "phase" | "source" | "harness";
 
 export interface TokenLedgerQuery {
   since?: number;
@@ -40,6 +41,7 @@ export interface TokenLedgerQuery {
   principalId?: string;
   scopeLabel?: string;
   runId?: string;
+  harness?: string;
   limit?: number;
 }
 
@@ -66,6 +68,7 @@ export function estimatedEntryFromInputTokens(base: {
   inputTokens: number;
   sessionId?: string;
   runId?: string;
+  harness?: string;
   at?: number;
 }): TokenLedgerEntry {
   return {
@@ -74,6 +77,7 @@ export function estimatedEntryFromInputTokens(base: {
     scopeLabel: base.scopeLabel,
     ...(base.sessionId ? { sessionId: base.sessionId } : {}),
     ...(base.runId ? { runId: base.runId } : {}),
+    ...(base.harness ? { harness: base.harness } : {}),
     model: base.model,
     phase: base.phase,
     input: base.inputTokens,
@@ -93,6 +97,7 @@ export function entryFromUsage(base: {
   usage: LlmCallUsage;
   sessionId?: string;
   runId?: string;
+  harness?: string;
   at?: number;
 }): TokenLedgerEntry {
   const { costUsd, estimated } = usageCostUsd(base.usage);
@@ -102,6 +107,7 @@ export function entryFromUsage(base: {
     scopeLabel: base.scopeLabel,
     ...(base.sessionId ? { sessionId: base.sessionId } : {}),
     ...(base.runId ? { runId: base.runId } : {}),
+    ...(base.harness ? { harness: base.harness } : {}),
     model: base.model,
     phase: base.phase,
     input: base.usage.input,
@@ -118,6 +124,7 @@ function groupKey(entry: TokenLedgerEntry, groupBy: TokenLedgerGroupBy): string 
   if (groupBy === "scope") return entry.scopeLabel;
   if (groupBy === "model") return entry.model;
   if (groupBy === "source") return entry.source ?? "los";
+  if (groupBy === "harness") return entry.harness ?? "unknown";
   return entry.phase;
 }
 
@@ -127,6 +134,7 @@ function matches(entry: TokenLedgerEntry, opts: TokenLedgerQuery): boolean {
   if (opts.principalId !== undefined && entry.principalId !== opts.principalId) return false;
   if (opts.scopeLabel !== undefined && entry.scopeLabel !== opts.scopeLabel) return false;
   if (opts.runId !== undefined && entry.runId !== opts.runId) return false;
+  if (opts.harness !== undefined && (entry.harness ?? "unknown") !== opts.harness) return false;
   return true;
 }
 

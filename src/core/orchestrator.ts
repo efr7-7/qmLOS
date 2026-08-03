@@ -1534,6 +1534,7 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
                   model: rec.model,
                   phase: "detect",
                   inputTokens: rec.inputTokens,
+                  ...(deps.harness.profile.id ? { harness: deps.harness.profile.id } : {}),
                 }),
               );
             },
@@ -2071,6 +2072,7 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
           let turnExactMetered = false;
           let turnUnmeteredInputTokens = 0;
           let turnUnmeteredModel = "";
+          let servedHarness = deps.harness.profile.id;
           const flushTurnMeterFallback = () => {
             if (turnExactMetered || turnUnmeteredInputTokens <= 0) return;
             void deps.budget?.record(actor.id, estimateCostUsd(turnUnmeteredInputTokens));
@@ -2083,6 +2085,7 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
                 inputTokens: turnUnmeteredInputTokens,
                 sessionId: session.id,
                 ...(input.runId ? { runId: input.runId } : {}),
+                ...(servedHarness ? { harness: servedHarness } : {}),
               }),
             );
           };
@@ -2296,6 +2299,9 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
             onGapWork: (cb) => {
               harnessOnGapWork = cb;
             },
+            onRuntimeResolved: (runtime) => {
+              servedHarness = runtime.harnessId;
+            },
             recordModelCall: (rec) => {
               deps.modelGateway.recordCall({ at: Date.now(), scopeLabel: scopeId, ...rec });
               turnUnmeteredInputTokens += rec.inputTokens;
@@ -2312,6 +2318,7 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
                   usage: rec.usage,
                   sessionId: session.id,
                   ...(input.runId ? { runId: input.runId } : {}),
+                  ...(servedHarness ? { harness: servedHarness } : {}),
                 });
                 void deps.budget?.record(actor.id, entry.costUsd);
                 void deps.tokenLedger?.record(entry);

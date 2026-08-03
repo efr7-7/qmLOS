@@ -9,7 +9,18 @@ export interface Me {
   permissions?: string[];
 }
 
-const VIEWS = ["chats", "contexts", "crons", "files", "keychain", "deploys", "memory", "skills", "usage"] as const;
+const VIEWS = [
+  "chats",
+  "contexts",
+  "crons",
+  "files",
+  "keychain",
+  "deploys",
+  "memory",
+  "skills",
+  "usage",
+  "governance",
+] as const;
 export type View = (typeof VIEWS)[number];
 
 export function isView(view: string | null | undefined): view is View {

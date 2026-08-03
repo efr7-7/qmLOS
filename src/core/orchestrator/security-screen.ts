@@ -52,6 +52,7 @@ export function createSecurityClassifier(deps: OrchestratorDeps): SecurityClassi
           model: rec.model,
           phase: "screen",
           usage: rec.usage,
+          ...(deps.harness.profile.id ? { harness: deps.harness.profile.id } : {}),
         });
         void deps.budget?.record(actorId, entry.costUsd);
         void deps.tokenLedger?.record(entry);
@@ -66,6 +67,7 @@ export function createSecurityClassifier(deps: OrchestratorDeps): SecurityClassi
             model: unmeteredModel,
             phase: "screen",
             inputTokens: unmeteredInputTokens,
+            ...(deps.harness.profile.id ? { harness: deps.harness.profile.id } : {}),
           }),
         );
       };

@@ -15,6 +15,7 @@ import {
   Plus,
   RefreshCw,
   Rocket,
+  ShieldCheck,
   type IconNode,
 } from "lucide";
 import "@mariozechner/mini-lit/dist/ThemeToggle.js";
@@ -71,6 +72,7 @@ import { renderDeploys } from "./deploys";
 import { renderMemory, resetMemoryState } from "./memory";
 import { renderSkills } from "./skills";
 import { renderUsage, resetUsageState } from "./usage";
+import { renderGovernance, resetGovernanceState } from "./governance";
 import { contextsState, ensureContexts, renderContexts, resetContextsState } from "./contexts";
 import { appState, isView, type AuthMode, type Me, type View } from "./shell-state";
 import { trapDialogFocus } from "./dialog-focus";
@@ -195,6 +197,7 @@ const ICON = {
   memory: Brain,
   skills: Box,
   usage: Activity,
+  governance: ShieldCheck,
 };
 
 export async function signOut(): Promise<void> {
@@ -214,6 +217,7 @@ export async function signOut(): Promise<void> {
   composerState.skillsCache = null;
   resetMemoryState();
   resetUsageState();
+  resetGovernanceState();
   resetContextsState();
   resetKeychainState();
   resetComposer();
@@ -334,9 +338,12 @@ function asciiButton(label: string, opts: AsciiButtonOpts = {}) {
       ?disabled=${opts.disabled === true}
       aria-label=${label}
       @click=${opts.onClick}
-    ><pre aria-hidden="true">${cells[0]}
+    >
+      <pre aria-hidden="true">
+${cells[0]}
 ${cells[1]}
-${cells[2]}</pre></button>
+${cells[2]}</pre>
+    </button>
   `;
 }
 
@@ -399,7 +406,11 @@ function clearPortalAttempt(): void {
 function portalGate() {
   if (portalAttemptedRecently())
     return gateShell(
-      gateDock(`${brandName()} // NO SESSION`, "The portal didn't hand off a session. Open the portal's own address.", nothing),
+      gateDock(
+        `${brandName()} // NO SESSION`,
+        "The portal didn't hand off a session. Open the portal's own address.",
+        nothing,
+      ),
     );
   const ended = sessionEnded();
   return gateShell(
@@ -650,7 +661,7 @@ export function renderSidebarTop(): void {
             ${navRow("files", ICON.files, "Files")} ${navRow("crons", ICON.crons, "Crons")}
             ${navRow("keychain", ICON.keychain, "Keychain")} ${navRow("deploys", ICON.deploys, "Apps")}
             ${navRow("memory", ICON.memory, "Memory")} ${navRow("skills", ICON.skills, "Skills")}
-            ${navRow("usage", ICON.usage, "Usage")}
+            ${navRow("usage", ICON.usage, "Usage")} ${navRow("governance", ICON.governance, "Governance")}
           `,
         )}
       </nav>
@@ -736,6 +747,9 @@ export function switchView(v: View): void {
     case "usage":
       void renderUsage();
       break;
+    case "governance":
+      void renderGovernance();
+      break;
   }
 }
 
@@ -769,6 +783,9 @@ function refreshActiveView(v: View): void {
       break;
     case "usage":
       void renderUsage();
+      break;
+    case "governance":
+      void renderGovernance();
       break;
   }
 }

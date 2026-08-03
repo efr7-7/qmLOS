@@ -103,6 +103,70 @@ test("memory ledger: summary groups and filters, list respects limit and order",
   assert.equal(listed[1]!.at, 20);
 });
 
+test("memory ledger: groups and filters by harness, unlabelled spend rolls up as unknown", async () => {
+  const ledger = createMemoryTokenLedger();
+  const usage = (costUsd: number) => ({ input: 100, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150, costUsd });
+  await ledger.record(
+    entryFromUsage({
+      principalId: "U1",
+      scopeLabel: scope,
+      model: "a",
+      phase: "turn",
+      usage: usage(1),
+      harness: "claude",
+      at: 10,
+    }),
+  );
+  await ledger.record(
+    entryFromUsage({
+      principalId: "U1",
+      scopeLabel: scope,
+      model: "a",
+      phase: "turn",
+      usage: usage(3),
+      harness: "codex",
+      at: 20,
+    }),
+  );
+  await ledger.record(
+    estimatedEntryFromInputTokens({
+      principalId: "U1",
+      scopeLabel: scope,
+      model: "a",
+      phase: "screen",
+      inputTokens: 1_000_000,
+      harness: "claude",
+      at: 30,
+    }),
+  );
+  await ledger.record(
+    entryFromUsage({ principalId: "U1", scopeLabel: scope, model: "a", phase: "turn", usage: usage(2), at: 40 }),
+  );
+
+  const byHarness = await ledger.summary("harness");
+  assert.deepEqual(
+    byHarness.map((row) => row.key),
+    ["claude", "codex", "unknown"],
+  );
+  assert.equal(byHarness[0]!.calls, 2);
+  assert.equal(byHarness[0]!.costUsd, 6);
+  assert.equal(byHarness[0]!.estimatedCalls, 1);
+  assert.equal(byHarness[2]!.costUsd, 2);
+
+  const claudeOnly = await ledger.summary("phase", { harness: "claude" });
+  assert.equal(claudeOnly.length, 2);
+  assert.equal(claudeOnly.find((row) => row.key === "turn")!.costUsd, 1);
+
+  const unlabelled = await ledger.list({ harness: "unknown" });
+  assert.equal(unlabelled.length, 1);
+  assert.equal(unlabelled[0]!.at, 40);
+  assert.equal(unlabelled[0]!.harness, undefined);
+
+  const codex = await ledger.list({ harness: "codex" });
+  assert.equal(codex.length, 1);
+  assert.equal(codex[0]!.harness, "codex");
+});
+
 test("memory ledger: bounded retention drops oldest entries", async () => {
   const ledger = createMemoryTokenLedger({ max: 2 });
   for (let i = 0; i < 5; i++) {

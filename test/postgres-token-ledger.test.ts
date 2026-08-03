@@ -30,11 +30,11 @@ test("pg ledger: entries persist across instances and roll up by group", { skip 
   const b = createPostgresTokenLedger(URL!);
 
   await a.record(
-    entryFromUsage({ principalId: "U1", scopeLabel: scope, model: "m1", phase: "turn", usage: usage(1), at: 10, sessionId: "s1", runId: "r1" }),
+    entryFromUsage({ principalId: "U1", scopeLabel: scope, model: "m1", phase: "turn", usage: usage(1), at: 10, sessionId: "s1", runId: "r1", harness: "claude" }),
   );
   await a.record(entryFromUsage({ principalId: "U1", scopeLabel: scope, model: "m2", phase: "screen", usage: usage(2), at: 20 }));
   await b.record(
-    entryFromUsage({ principalId: "U2", scopeLabel: "personal:U2" as ScopeId, model: "m1", phase: "turn", usage: usage(4), at: 30 }),
+    entryFromUsage({ principalId: "U2", scopeLabel: "personal:U2" as ScopeId, model: "m1", phase: "turn", usage: usage(4), at: 30, harness: "codex" }),
   );
 
   const byPrincipal = await b.summary("principal");
@@ -52,12 +52,21 @@ test("pg ledger: entries persist across instances and roll up by group", { skip 
   const windowed = await a.summary("phase", { since: 15, until: 25 });
   assert.equal(windowed.length, 1);
   assert.equal(windowed[0]!.key, "screen");
+
+  const byHarness = await a.summary("harness");
+  assert.deepEqual(
+    byHarness.map((row) => row.key),
+    ["codex", "unknown", "claude"],
+  );
+  const claudeOnly = await a.summary("model", { harness: "claude" });
+  assert.equal(claudeOnly.length, 1);
+  assert.equal(claudeOnly[0]!.key, "m1");
 });
 
 test("pg ledger: list filters, orders newest-first, and preserves entry fields", { skip }, async () => {
   const ledger = createPostgresTokenLedger(URL!);
   await ledger.record(
-    entryFromUsage({ principalId: "U1", scopeLabel: scope, model: "m1", phase: "turn", usage: usage(1), at: 10, sessionId: "s1", runId: "r1" }),
+    entryFromUsage({ principalId: "U1", scopeLabel: scope, model: "m1", phase: "turn", usage: usage(1), at: 10, sessionId: "s1", runId: "r1", harness: "claude" }),
   );
   await ledger.record(entryFromUsage({ principalId: "U1", scopeLabel: scope, model: "m1", phase: "turn", usage: usage(0), at: 20 }));
 
@@ -70,6 +79,8 @@ test("pg ledger: list filters, orders newest-first, and preserves entry fields",
   assert.equal(rows[1]!.sessionId, "s1");
   assert.equal(rows[1]!.runId, "r1");
   assert.equal(rows[1]!.costUsd, 1);
+  assert.equal(rows[1]!.harness, "claude");
+  assert.equal(rows[0]!.harness, undefined);
 
   const limited = await ledger.list({ limit: 1 });
   assert.equal(limited.length, 1);

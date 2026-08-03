@@ -81,6 +81,7 @@ export interface HarnessTurnInput {
   orgScopeId: ScopeId;
   recordModelCall(rec: { model: string; inputTokens: number; entryCount: number }): void;
   recordLlmRequest?(rec: HarnessLlmRequestRecord): void | Promise<void>;
+  onRuntimeResolved?(runtime: { harnessId: string; modelId: string }): void;
   onProgress?(p: { toolCalls: number; tokens?: number }): void;
   onGapWork?(sink: (work: GapWork) => void): void;
   onDelta?(chunk: string): void;

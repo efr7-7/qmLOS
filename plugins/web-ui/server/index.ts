@@ -428,6 +428,7 @@ async function coreFetch(
   pathWithQuery: string,
   rawBody = "",
   timeoutMs?: number,
+  extraHeaders?: Record<string, string>,
 ): Promise<{ status: number; text: string }> {
   const signedPath = withSourceAuthNonce(pathWithQuery, CORE_SIGNING_SECRET);
   const portalTok = portalTokenStore.getStore();
@@ -436,6 +437,7 @@ async function coreFetch(
     headers: {
       ...signedHeaders(CORE_SIGNING_SECRET, method, signedPath, rawBody),
       ...(portalTok ? { [PORTAL_IDENTITY_HEADER]: portalTok } : {}),
+      ...(extraHeaders ?? {}),
     },
     ...(rawBody ? { body: rawBody } : {}),
     ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
@@ -1146,9 +1148,115 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
       return relay(res, r);
     }
 
+    if (method === "GET" && path === "/api/admin/utb/people") {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const since = url.searchParams.get("since");
+      const qs = new URLSearchParams({ scope, ...(since ? { since } : {}) });
+      const r = await coreFetch("GET", `/v1/admin/utb/people?${qs.toString()}`);
+      return relay(res, r);
+    }
+
+    if (method === "GET" && path.startsWith("/api/admin/utb/people/")) {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const since = url.searchParams.get("since");
+      const qs = new URLSearchParams({ scope, ...(since ? { since } : {}) });
+      const principalId = path.slice("/api/admin/utb/people/".length);
+      const r = await coreFetch("GET", `/v1/admin/utb/people/${encodeURIComponent(principalId)}?${qs.toString()}`);
+      return relay(res, r);
+    }
+
+    if (method === "GET" && path === "/api/admin/utb/teams") {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const r = await coreFetch("GET", `/v1/admin/utb/teams?scope=${encodeURIComponent(scope)}`);
+      return relay(res, r);
+    }
+
+    if (method === "PUT" && path === "/api/admin/utb/teams") {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const ifMatch = req.headers["if-match"];
+      const r = await coreFetch(
+        "PUT",
+        `/v1/admin/utb/teams?scope=${encodeURIComponent(scope)}`,
+        (await readBody(req)) || "{}",
+        undefined,
+        typeof ifMatch === "string" && ifMatch ? { "if-match": ifMatch } : undefined,
+      );
+      return relay(res, r);
+    }
+
+    if (method === "PUT" && /^\/api\/admin\/utb\/teams\/[^/]+\/members\/[^/]+$/.test(path)) {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const [teamId, principalId] = [path.split("/")[5]!, path.split("/")[7]!];
+      const r = await coreFetch(
+        "PUT",
+        `/v1/admin/utb/teams/${encodeURIComponent(decodeURIComponent(teamId))}/members/${encodeURIComponent(decodeURIComponent(principalId))}?scope=${encodeURIComponent(scope)}`,
+        (await readBody(req)) || "{}",
+      );
+      return relay(res, r);
+    }
+
+    if (method === "DELETE" && /^\/api\/admin\/utb\/teams\/[^/]+\/members\/[^/]+$/.test(path)) {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const [teamId, principalId] = [path.split("/")[5]!, path.split("/")[7]!];
+      const r = await coreFetch(
+        "DELETE",
+        `/v1/admin/utb/teams/${encodeURIComponent(decodeURIComponent(teamId))}/members/${encodeURIComponent(decodeURIComponent(principalId))}?scope=${encodeURIComponent(scope)}`,
+      );
+      return relay(res, r);
+    }
+
+    if (method === "DELETE" && path.startsWith("/api/admin/utb/teams/")) {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const id = decodeURIComponent(path.slice("/api/admin/utb/teams/".length));
+      const r = await coreFetch(
+        "DELETE",
+        `/v1/admin/utb/teams/${encodeURIComponent(id)}?scope=${encodeURIComponent(scope)}`,
+      );
+      return relay(res, r);
+    }
+
     if (method === "GET" && path === "/api/admin/utb/allocations") {
       const scope = url.searchParams.get("scope") || `org:${ORG}`;
       const r = await coreFetch("GET", `/v1/admin/utb/allocations?scope=${encodeURIComponent(scope)}`);
+      return relay(res, r);
+    }
+
+    if (method === "PUT" && path === "/api/admin/utb/allocations") {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const r = await coreFetch(
+        "PUT",
+        `/v1/admin/utb/allocations?scope=${encodeURIComponent(scope)}`,
+        (await readBody(req)) || "{}",
+      );
+      return relay(res, r);
+    }
+
+    if (method === "DELETE" && path.startsWith("/api/admin/utb/allocations/")) {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const id = decodeURIComponent(path.slice("/api/admin/utb/allocations/".length));
+      const r = await coreFetch(
+        "DELETE",
+        `/v1/admin/utb/allocations/${encodeURIComponent(id)}?scope=${encodeURIComponent(scope)}`,
+      );
+      return relay(res, r);
+    }
+
+    if (method === "POST" && path === "/api/admin/grants") {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const r = await coreFetch(
+        "POST",
+        `/v1/admin/grants?scope=${encodeURIComponent(scope)}`,
+        (await readBody(req)) || "{}",
+      );
+      return relay(res, r);
+    }
+
+    if (method === "DELETE" && path.startsWith("/api/admin/grants/")) {
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const role = url.searchParams.get("role") || "org_admin";
+      const principalId = decodeURIComponent(path.slice("/api/admin/grants/".length));
+      const qs = new URLSearchParams({ scope, role });
+      const r = await coreFetch("DELETE", `/v1/admin/grants/${encodeURIComponent(principalId)}?${qs.toString()}`);
       return relay(res, r);
     }
 

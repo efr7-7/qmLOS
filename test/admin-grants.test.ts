@@ -123,6 +123,27 @@ test("revoke flips a promoted user back to non-admin; audited", async () => {
     assert.ok(
       (await s.built.auditLog.events()).some((e) => e.action === "grant.revoke" && e.resource === "U1/org_admin"),
     );
+    const again = await del(s.base, ALICE, "U1", "org:default-org", "org_admin");
+    assert.equal(again.status, 404, "revoking a grant nobody holds is a miss, like every sibling delete");
+    assert.equal(((await again.json()) as any).error, "not_found");
+  } finally {
+    await s.close();
+  }
+});
+
+test("an admin cannot revoke their own grant even when other admins exist", async () => {
+  const s = start();
+  try {
+    await post(s.base, ALICE, { principalId: "U9", role: "org_admin", scopeId: "org:default-org" });
+    const r = await del(s.base, ALICE, "admin-alice", "org:default-org", "org_admin");
+    assert.equal(r.status, 400, "self-demotion is refused on the server, not just hidden in the UI");
+    assert.match(((await r.json()) as { message: string }).message, /your own admin grant/);
+    assert.deepEqual(await whoami(s.base, ALICE), {
+      isAdmin: true,
+      role: "org_admin",
+      scopeId: "org:default-org",
+      permissions: ["admin"],
+    });
   } finally {
     await s.close();
   }
@@ -155,7 +176,11 @@ test("the last-admin guard counts one person's case-variant grants as ONE admin"
     assert.equal((await del(s.base, ALICE, "admin-bob", "org:default-org", "org_admin")).status, 200);
     await post(s.base, ALICE, { principalId: "Jordan@Acme.test", role: "org_admin", scopeId: "org:default-org" });
     await post(s.base, ALICE, { principalId: "jordan@acme.test", role: "org_admin", scopeId: "org:default-org" });
-    assert.equal((await del(s.base, ALICE, "admin-alice", "org:default-org", "org_admin")).status, 200);
+    assert.equal(
+      (await del(s.base, "jordan@acme.test@default-org", "admin-alice", "org:default-org", "org_admin")).status,
+      200,
+      "another admin may revoke alice; only alice herself may not",
+    );
     const r = await del(s.base, "jordan@acme.test@default-org", "jordan@acme.test", "org:default-org", "org_admin");
     assert.equal(r.status, 400, "two case-variant rows are still one person — the lock-out guard holds");
     assert.deepEqual(await whoami(s.base, "jordan@acme.test@default-org"), {

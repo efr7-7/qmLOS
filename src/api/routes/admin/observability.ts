@@ -3,7 +3,7 @@ import { cacheHitRatio, isStablePrefixMiss, type TurnMetricSample } from "../../
 import { sendJson } from "../../http.ts";
 import { audit, requireScopedAdmin } from "../shared.ts";
 import { type ApiCtx } from "../route.ts";
-import { isAllocationSubject } from "../../../ratelimit/allocation-store.ts";
+import { isAllocationSubject, type AllocationSubject } from "../../../ratelimit/allocation-store.ts";
 import { allocationSpendUsd } from "../../../ratelimit/allocation-budget.ts";
 
 const METRICS_SCAN_LIMIT = 10000;
@@ -352,7 +352,7 @@ export async function listAdminAudit(ctx: ApiCtx): Promise<void> {
   return sendJson(res, 200, { scopeId: scope, events });
 }
 
-const UTB_GROUPS = ["principal", "scope", "model", "phase", "source"] as const;
+const UTB_GROUPS = ["principal", "scope", "model", "phase", "source", "harness"] as const;
 const UTB_DEFAULT_WINDOW_MS = 30 * 86_400_000;
 
 export async function utbSummary(ctx: ApiCtx): Promise<void> {
@@ -384,9 +384,12 @@ export async function utbSummary(ctx: ApiCtx): Promise<void> {
   const totalCostUsd = ((groups.phase as Array<{ costUsd: number }>) ?? []).reduce((sum, row) => sum + row.costUsd, 0);
   const headcount = orgWide ? ((await deps.directory?.list()) ?? []).length : null;
   const windowDays = (Date.now() - since) / 86_400_000;
-  const pepmUsd =
-    headcount && headcount > 0 && windowDays > 0 ? (totalCostUsd / headcount) * (30 / windowDays) : null;
+  const pepmUsd = headcount && headcount > 0 && windowDays > 0 ? (totalCostUsd / headcount) * (30 / windowDays) : null;
   return sendJson(res, 200, { since, scopeId: scope, orgWide, totalCostUsd, headcount, pepmUsd, groups });
+}
+
+export function membersVersion(members: readonly string[]): string {
+  return `W/"m${members.length}-${[...members].sort().join("|")}"`;
 }
 
 export async function utbTeams(ctx: ApiCtx): Promise<void> {
@@ -395,7 +398,13 @@ export async function utbTeams(ctx: ApiCtx): Promise<void> {
   if (!authz) return;
   if (!deps.teams) return sendJson(res, 404, { error: "not_found" });
   audit(deps, { principalId: authz.actor.id, action: "utb.teams.read", resource: "teams", scopeLabel: authz.scope });
-  return sendJson(res, 200, { teams: await deps.teams.list() });
+  const teams = await Promise.all(
+    (await deps.teams.list()).map(async (team) => ({
+      ...team,
+      membersVersion: membersVersion((await deps.teams!.members(team.id).catch(() => [])) ?? []),
+    })),
+  );
+  return sendJson(res, 200, { teams });
 }
 
 export async function putUtbTeam(ctx: ApiCtx): Promise<void> {
@@ -409,14 +418,52 @@ export async function putUtbTeam(ctx: ApiCtx): Promise<void> {
   if (!id || !name) return sendJson(res, 400, { error: "bad_request", message: "id and name required" });
   const parentId = typeof b.parentId === "string" && b.parentId.trim() ? b.parentId.trim() : null;
   if (parentId === id) return sendJson(res, 400, { error: "bad_request", message: "a team cannot parent itself" });
-  await deps.teams.upsert({ id, name, parentId });
-  if (Array.isArray(b.members)) {
-    for (const member of b.members) {
-      if (typeof member === "string" && member.trim()) await deps.teams.setMember(id, member.trim());
+  if (parentId !== null) {
+    const existing = await deps.teams.list();
+    if (!existing.some((team) => team.id === parentId)) {
+      return sendJson(res, 400, { error: "bad_request", message: `unknown parent team ${parentId}` });
+    }
+    if ((await deps.teams.ancestry(parentId)).includes(id)) {
+      return sendJson(res, 400, { error: "bad_request", message: "a team cannot descend from itself" });
     }
   }
+  if (Array.isArray(b.members) && b.members.some((member) => typeof member !== "string" || !member.trim())) {
+    return sendJson(res, 400, { error: "bad_request", message: "members must be non-empty principal ids" });
+  }
+  const ifMatch = String(ctx.req.headers["if-match"] ?? "").trim();
+  const current = await deps.teams.members(id);
+  if (ifMatch && ifMatch !== membersVersion(current)) {
+    return sendJson(res, 409, {
+      error: "conflict",
+      message: `membership of ${id} changed since you loaded it`,
+      membersVersion: membersVersion(current),
+    });
+  }
+  if (!ifMatch && (await deps.teams.list()).some((team) => team.id === id)) {
+    return sendJson(res, 409, {
+      error: "team_exists",
+      message: `team ${id} already exists — edit it with If-Match instead of creating it`,
+      membersVersion: membersVersion(current),
+    });
+  }
+  await deps.teams.upsert({ id, name, parentId });
+  let members: string[] | null = null;
+  if (Array.isArray(b.members)) {
+    members = [...new Set(b.members.map((member) => String(member).trim()))];
+    for (const existingMember of current) {
+      if (!members.includes(existingMember)) await deps.teams.removeMember(existingMember);
+    }
+    for (const member of members) await deps.teams.setMember(id, member);
+  }
   audit(deps, { principalId: authz.actor.id, action: "utb.teams.write", resource: id, scopeLabel: authz.scope });
-  return sendJson(res, 200, { ok: true });
+  return sendJson(res, 200, {
+    ok: true,
+    id,
+    name,
+    parentId,
+    members,
+    membersVersion: membersVersion(await deps.teams.members(id)),
+  });
 }
 
 export async function deleteUtbTeam(ctx: ApiCtx): Promise<void> {
@@ -425,9 +472,25 @@ export async function deleteUtbTeam(ctx: ApiCtx): Promise<void> {
   if (!authz) return;
   if (!deps.teams) return sendJson(res, 404, { error: "not_found" });
   const id = ctx.params.id!;
+  const all = await deps.teams.list();
+  const team = all.find((t) => t.id === id);
+  if (!team) return sendJson(res, 404, { error: "not_found", message: `no team ${id}` });
+  const reparented: string[] = [];
+  for (const child of all) {
+    if (child.parentId !== id) continue;
+    await deps.teams.upsert({ ...child, parentId: team.parentId });
+    reparented.push(child.id);
+  }
+  const removedAllocations: string[] = [];
+  for (const allocation of (await deps.allocations?.list().catch(() => [])) ?? []) {
+    if (allocation.subject !== `team:${id}`) continue;
+    await deps.allocations!.remove(allocation.id);
+    removedAllocations.push(allocation.id);
+  }
+  const unassigned = await deps.teams.members(id);
   await deps.teams.remove(id);
   audit(deps, { principalId: authz.actor.id, action: "utb.teams.delete", resource: id, scopeLabel: authz.scope });
-  return sendJson(res, 200, { ok: true });
+  return sendJson(res, 200, { ok: true, id, reparented, removedAllocations, unassigned });
 }
 
 export async function utbAllocations(ctx: ApiCtx): Promise<void> {
@@ -454,6 +517,22 @@ export async function utbAllocations(ctx: ApiCtx): Promise<void> {
   return sendJson(res, 200, { allocations });
 }
 
+async function allocationSubjectResolves(deps: ApiCtx["deps"], subject: AllocationSubject): Promise<boolean> {
+  if (subject === "org") return true;
+  if (subject.startsWith("team:")) {
+    const teamId = subject.slice("team:".length);
+    if (!teamId) return false;
+    return ((await deps.teams?.list().catch(() => [])) ?? []).some((team) => team.id === teamId);
+  }
+  const principalId = subject.slice("principal:".length);
+  if (!principalId) return false;
+  if (await deps.directory?.get(principalId).catch(() => null)) return true;
+  if (await deps.teams?.teamOf(principalId).catch(() => null)) return true;
+  if (((await deps.tokenLedger?.list({ principalId, limit: 1 }).catch(() => [])) ?? []).length) return true;
+  const status = await deps.admin?.adminStatusOf({ id: principalId, type: "internal" }).catch(() => null);
+  return status?.isAdmin === true;
+}
+
 export async function putUtbAllocation(ctx: ApiCtx): Promise<void> {
   const { res, deps, body } = ctx;
   const authz = await requireScopedAdmin(ctx);
@@ -469,6 +548,19 @@ export async function putUtbAllocation(ctx: ApiCtx): Promise<void> {
       message: "id, subject (org | team:<id> | principal:<id>), and positive limitUsd required",
     });
   }
+  if (!(await allocationSubjectResolves(deps, b.subject))) {
+    return sendJson(res, 400, { error: "unknown_subject", message: `${b.subject} does not resolve to anyone` });
+  }
+  const clash = (await deps.allocations.list()).find(
+    (allocation) => allocation.subject === b.subject && allocation.windowMs === windowMs && allocation.id !== id,
+  );
+  if (clash) {
+    return sendJson(res, 409, {
+      error: "subject_already_capped",
+      existingId: clash.id,
+      message: `${b.subject} already has a budget for this window — edit ${clash.id} instead`,
+    });
+  }
   await deps.allocations.upsert({ id, subject: b.subject, limitUsd, windowMs, hard: b.hard === true });
   audit(deps, { principalId: authz.actor.id, action: "utb.allocations.write", resource: id, scopeLabel: authz.scope });
   return sendJson(res, 200, { ok: true });
@@ -480,6 +572,9 @@ export async function deleteUtbAllocation(ctx: ApiCtx): Promise<void> {
   if (!authz) return;
   if (!deps.allocations) return sendJson(res, 404, { error: "not_found" });
   const id = ctx.params.id!;
+  if (!(await deps.allocations.list()).some((allocation) => allocation.id === id)) {
+    return sendJson(res, 404, { error: "not_found", message: `no allocation ${id}` });
+  }
   await deps.allocations.remove(id);
   audit(deps, { principalId: authz.actor.id, action: "utb.allocations.delete", resource: id, scopeLabel: authz.scope });
   return sendJson(res, 200, { ok: true });
@@ -543,7 +638,14 @@ export async function utbLeaderboard(ctx: ApiCtx): Promise<void> {
   >();
   for (const row of rows) {
     const key = row.teamId ?? "unassigned";
-    const t = teamsRollup.get(key) ?? { members: 0, calls: 0, totalTokens: 0, costUsd: 0, produced: 0, cacheWeighted: 0 };
+    const t = teamsRollup.get(key) ?? {
+      members: 0,
+      calls: 0,
+      totalTokens: 0,
+      costUsd: 0,
+      produced: 0,
+      cacheWeighted: 0,
+    };
     t.members += 1;
     t.calls += row.calls;
     t.totalTokens += row.totalTokens;
@@ -617,7 +719,17 @@ export async function utbChargeback(ctx: ApiCtx): Promise<void> {
   for (const row of rows) {
     const teamId = (await deps.teams?.teamOf(row.key).catch(() => null)) ?? "";
     lines.push(
-      [teamId, row.key, row.calls, row.input, row.output, row.cacheRead, row.cacheWrite, row.costUsd.toFixed(6), row.estimatedCalls]
+      [
+        teamId,
+        row.key,
+        row.calls,
+        row.input,
+        row.output,
+        row.cacheRead,
+        row.cacheWrite,
+        row.costUsd.toFixed(6),
+        row.estimatedCalls,
+      ]
         .map(csvCell)
         .join(","),
     );

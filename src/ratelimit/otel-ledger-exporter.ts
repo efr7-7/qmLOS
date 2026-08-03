@@ -44,6 +44,7 @@ function spanFromEntry(entry: TokenLedgerEntry): Record<string, unknown> {
       attr("los.cost_estimated", entry.estimated),
       ...(entry.sessionId ? [attr("los.session_id", entry.sessionId)] : []),
       ...(entry.runId ? [attr("los.run_id", entry.runId)] : []),
+      ...(entry.harness ? [attr("los.harness", entry.harness)] : []),
     ],
     status: {},
   };

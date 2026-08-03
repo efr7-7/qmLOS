@@ -2,6 +2,7 @@ import { html, nothing, render, type TemplateResult } from "lit";
 import { RefreshCw } from "lucide";
 import { api } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
+import { subjectLabel, type SubjectPerson, type SubjectTeam } from "./subject-label";
 import { icon } from "./ui";
 import { emptyPlayground } from "./playground";
 import { appState, replacePanePreservingFocus } from "./shell";
@@ -67,6 +68,8 @@ let usage: UsageSummary | null = null;
 let org: OrgUtb | null = null;
 let leaderboard: Leaderboard | null = null;
 let allocations: Allocation[] | null = null;
+let teams: SubjectTeam[] | null = null;
+let people: SubjectPerson[] | null = null;
 let notice = "";
 
 export function resetUsageState(): void {
@@ -74,6 +77,8 @@ export function resetUsageState(): void {
   org = null;
   leaderboard = null;
   allocations = null;
+  teams = null;
+  people = null;
   notice = "";
 }
 
@@ -113,9 +118,7 @@ function fmtSince(since: unknown): string {
 }
 
 function rowTokens(r: UsageRow): number {
-  return r.totalTokens !== undefined
-    ? n(r.totalTokens)
-    : n(r.input) + n(r.output) + n(r.cacheRead) + n(r.cacheWrite);
+  return r.totalTokens !== undefined ? n(r.totalTokens) : n(r.input) + n(r.output) + n(r.cacheRead) + n(r.cacheWrite);
 }
 
 function meter(value: number, cls = ""): TemplateResult {
@@ -171,14 +174,15 @@ function myModelTable(rows: UsageRow[]): TemplateResult {
       </thead>
       <tbody>
         ${rows.map(
-          (r) => html`<tr>
-            <td><span class="usage-key">${r.key}</span>${estChip(r)}</td>
-            <td>${fmtCalls(r.calls)}</td>
-            <td>${fmtTokens(r.input)}</td>
-            <td>${fmtTokens(r.output)}</td>
-            <td>${fmtTokens(r.cacheRead)}</td>
-            <td class="usage-cost">${money(r.costUsd)}</td>
-          </tr>`,
+          (r) =>
+            html`<tr>
+              <td><span class="usage-key">${r.key}</span>${estChip(r)}</td>
+              <td>${fmtCalls(r.calls)}</td>
+              <td>${fmtTokens(r.input)}</td>
+              <td>${fmtTokens(r.output)}</td>
+              <td>${fmtTokens(r.cacheRead)}</td>
+              <td class="usage-cost">${money(r.costUsd)}</td>
+            </tr>`,
         )}
       </tbody>
     </table>
@@ -200,14 +204,15 @@ function orgModelTable(rows: UsageRow[]): TemplateResult {
       </thead>
       <tbody>
         ${rows.map(
-          (r) => html`<tr>
-            <td><span class="usage-key">${r.key}</span>${estChip(r)}</td>
-            <td>${fmtCalls(r.calls)}</td>
-            <td>${fmtTokens(rowTokens(r))}</td>
-            <td>${money(r.effectiveUsdPerMtok)}</td>
-            <td>${cacheCell(n(r.cacheReadShare))}</td>
-            <td class="usage-cost">${money(r.costUsd)}</td>
-          </tr>`,
+          (r) =>
+            html`<tr>
+              <td><span class="usage-key">${r.key}</span>${estChip(r)}</td>
+              <td>${fmtCalls(r.calls)}</td>
+              <td>${fmtTokens(rowTokens(r))}</td>
+              <td>${money(r.effectiveUsdPerMtok)}</td>
+              <td>${cacheCell(n(r.cacheReadShare))}</td>
+              <td class="usage-cost">${money(r.costUsd)}</td>
+            </tr>`,
         )}
       </tbody>
     </table>
@@ -254,8 +259,15 @@ function sourceSplit(rows: UsageRow[]): TemplateResult {
   </div>`;
 }
 
+function leaderboardSubject(isTeams: boolean, row: LeaderboardRow): TemplateResult {
+  const id = row.teamId ?? row.key ?? "";
+  if (!id) return html`<span class="usage-key">—</span>`;
+  if (isTeams && id === "unassigned") return html`<span class="subj"><span class="subj-name">Unassigned</span></span>`;
+  return subjectCell(isTeams ? `team:${id}` : `principal:${id}`, false);
+}
+
 function leaderboardTable(board: Leaderboard): TemplateResult {
-  const teams = board.mode !== "named";
+  const isTeams = board.mode !== "named";
   const rows = [...(board.rows ?? [])].sort(
     (a, b) => (a.costPerOutcomeUsd ?? Infinity) - (b.costPerOutcomeUsd ?? Infinity),
   );
@@ -264,8 +276,8 @@ function leaderboardTable(board: Leaderboard): TemplateResult {
       <thead>
         <tr>
           <th>#</th>
-          <th class="usage-team">${teams ? "Team" : "Principal"}</th>
-          ${teams ? html`<th>Members</th>` : nothing}
+          <th class="usage-team">${isTeams ? "Team" : "Principal"}</th>
+          ${isTeams ? html`<th>Members</th>` : nothing}
           <th>Tokens</th>
           <th>Outcomes</th>
           <th>Cache read</th>
@@ -275,16 +287,17 @@ function leaderboardTable(board: Leaderboard): TemplateResult {
       </thead>
       <tbody>
         ${rows.map(
-          (r, i) => html`<tr class=${i === 0 ? "usage-rank-1" : ""}>
-            <td class="usage-rank">${i + 1}</td>
-            <td class="usage-team"><span class="usage-key">${r.teamId ?? r.key ?? "—"}</span></td>
-            ${teams ? html`<td>${fmtCalls(r.members)}</td>` : nothing}
-            <td>${fmtTokens(r.totalTokens)}</td>
-            <td>${fmtCalls(r.outcomesProduced)}</td>
-            <td>${cacheCell(n(r.cacheReadShare))}</td>
-            <td>${money(r.costUsd)}</td>
-            <td class="usage-cost">${money(r.costPerOutcomeUsd)}</td>
-          </tr>`,
+          (r, i) =>
+            html`<tr class=${i === 0 ? "usage-rank-1" : ""}>
+              <td class="usage-rank">${i + 1}</td>
+              <td class="usage-team">${leaderboardSubject(isTeams, r)}</td>
+              ${isTeams ? html`<td>${fmtCalls(r.members)}</td>` : nothing}
+              <td>${fmtTokens(r.totalTokens)}</td>
+              <td>${fmtCalls(r.outcomesProduced)}</td>
+              <td>${cacheCell(n(r.cacheReadShare))}</td>
+              <td>${money(r.costUsd)}</td>
+              <td class="usage-cost">${money(r.costPerOutcomeUsd)}</td>
+            </tr>`,
         )}
       </tbody>
     </table>
@@ -322,11 +335,18 @@ function personalSection(u: UsageSummary): TemplateResult {
   </section>`;
 }
 
-function subjectLabel(subject: string): string {
-  if (subject === "org") return "Whole organization";
-  if (subject.startsWith("team:")) return `Team · ${subject.slice(5)}`;
-  if (subject.startsWith("principal:")) return `Person · ${subject.slice(10)}`;
-  return subject;
+function label(subject: string) {
+  return subjectLabel(subject, { teams, people });
+}
+
+function subjectCell(subject: string, showChip = true): TemplateResult {
+  const l = label(subject);
+  return html`<span class="subj">
+    ${showChip ? html`<span class="subj-chip">${l.chip}</span>` : nothing}
+    <span class="subj-name">${l.name}</span>
+    ${l.id && l.id !== l.name ? html`<span class="subj-id">${l.id}</span>` : nothing}
+    ${l.orphaned ? html`<span class="subj-orphan">orphaned — governs nobody</span>` : nothing}
+  </span>`;
 }
 
 function windowLabel(windowMs: number): string {
@@ -346,7 +366,7 @@ function allocationRows(rows: Allocation[]): TemplateResult {
       const level = over ? "is-over" : share >= 0.8 ? "is-warn" : "";
       return html`<div class="usage-alloc ${level}">
         <div class="usage-alloc-head">
-          <span class="usage-alloc-subject">${subjectLabel(String(a.subject ?? ""))}</span>
+          <span class="usage-alloc-subject">${subjectCell(String(a.subject ?? ""))}</span>
           <span class="usage-alloc-kind ${a.hard ? "hard" : ""}">${a.hard ? "HARD" : "SOFT"}</span>
           <span class="usage-alloc-amounts">
             ${spent !== null ? money(spent) : "—"} <span class="usage-alloc-of">of</span> ${money(limit)}
@@ -366,6 +386,7 @@ function soloUsage(o: OrgUtb): boolean {
 function orgSection(o: OrgUtb, board: Leaderboard | null): TemplateResult {
   const models = o.groups?.model ?? [];
   const sources = o.groups?.source ?? [];
+  const harnesses = o.groups?.harness ?? [];
   const orgTokens = models.reduce((a, r) => a + rowTokens(r), 0);
   const solo = soloUsage(o);
   return html`<section class="usage-section">
@@ -394,9 +415,14 @@ function orgSection(o: OrgUtb, board: Leaderboard | null): TemplateResult {
     }
     ${
       models.length
-        ? card("By model", solo ? "Effective rate and spend, per model." : "Effective rate and spend across the org.", orgModelTable(models))
+        ? card(
+            "By model",
+            solo ? "Effective rate and spend, per model." : "Effective rate and spend across the org.",
+            orgModelTable(models),
+          )
         : nothing
     }
+    ${harnesses.length ? card("By harness", "Which coding agent burned the tokens.", sourceSplit(harnesses)) : nothing}
     ${sources.length ? card("By source", "Which surfaces the tokens flow through.", sourceSplit(sources)) : nothing}
     ${
       !solo && board?.rows?.length
@@ -447,13 +473,17 @@ export async function renderUsage(): Promise<void> {
   notice = "";
   drawUsage(true);
   const orgScope = `org:${appState.me?.org ?? ""}`;
-  const [mine, utb, board, allocs] = await Promise.allSettled([
+  const [mine, utb, board, allocs, teamRows, peopleRows] = await Promise.allSettled([
     api<UsageSummary>("/api/usage"),
     api<OrgUtb>(`/api/admin/utb?scope=${encodeURIComponent(orgScope)}`),
     api<Leaderboard>("/api/admin/utb/leaderboard"),
     api<{ allocations: Allocation[] }>("/api/admin/utb/allocations"),
+    api<{ teams?: SubjectTeam[] }>(`/api/admin/utb/teams?scope=${encodeURIComponent(orgScope)}`),
+    api<{ people?: SubjectPerson[] }>(`/api/admin/utb/people?scope=${encodeURIComponent(orgScope)}`),
   ]);
   if (seq !== appState.viewRenderSeq || appState.currentView !== "usage") return;
+  teams = teamRows.status === "fulfilled" ? (teamRows.value.teams ?? null) : null;
+  people = peopleRows.status === "fulfilled" ? (peopleRows.value.people ?? null) : null;
   if (mine.status === "fulfilled") usage = mine.value;
   else {
     usage = null;

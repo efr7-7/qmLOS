@@ -123,6 +123,9 @@ export function createAdminService(store?: AdminGrantStore, opts: AdminServiceOp
       const matched = list.filter(
         (g) => samePerson(g.principalId, principalId) && g.scopeId === scope && g.role === role,
       );
+      if (samePerson(actor.id, principalId)) {
+        throw new AdminError(400, "you cannot revoke your own admin grant");
+      }
       if (role === "org_admin") {
         const distinctOrgAdmins = new Set(
           list.filter((g) => g.role === "org_admin").map((g) => personKey(g.principalId)),

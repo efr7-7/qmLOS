@@ -55,6 +55,7 @@ function entryFromOtelRecord(
   const principal =
     str(attrs, "los.principal_id", "user.email", "user.id", "user_id", "user.account_uuid", "enduser.id") ||
     "external:unknown";
+  const harness = str(attrs, "los.harness", "gen_ai.system");
   const at = timeNano ? Math.round(Number(timeNano) / 1_000_000) : Date.now();
   const usage = {
     input,
@@ -72,6 +73,7 @@ function entryFromOtelRecord(
     model: model || "unknown",
     phase: "external",
     source,
+    ...(harness ? { harness } : {}),
     input,
     output,
     cacheRead,

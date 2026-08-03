@@ -87,6 +87,7 @@ function isAdminContentRead(pathname: string): boolean {
     pathname === "/v1/admin/utb"
   )
     return true;
+  if (pathname === "/v1/admin/utb/people" || pathname.startsWith("/v1/admin/utb/people/")) return true;
   if (pathname === "/v1/admin/crons" || pathname === "/v1/admin/deployments" || pathname === "/v1/admin/skills")
     return true;
   if (pathname === "/v1/admin/deliveries/shadow") return true;

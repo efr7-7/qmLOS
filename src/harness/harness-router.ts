@@ -96,6 +96,7 @@ export function createHarnessRouter(
         const choice = await resolve(input);
         const adapter = adapters.get(choice.harnessId);
         if (!adapter) throw new Error(`harness ${choice.harnessId} is unavailable`);
+        input.onRuntimeResolved?.(choice);
         const prior = lastHarness.get(input.session.id);
         if (prior && prior !== choice.harnessId) {
           await adapters.get(prior)?.turns.resetSession?.(input.session.id);

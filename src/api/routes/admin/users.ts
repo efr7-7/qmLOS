@@ -358,6 +358,12 @@ export async function revokeAdminGrant(ctx: ApiCtx): Promise<void> {
       message: "principalId (path), and scope + role=org_admin (query) required",
     });
   }
+  const held = (await deps.admin!.listGrants()).some(
+    (g) => samePerson(g.principalId, principalId) && g.scopeId === scope && g.role === role,
+  );
+  if (!held) {
+    return sendJson(res, 404, { error: "not_found", message: `${principalId} holds no ${role} grant on ${scope}` });
+  }
   try {
     await deps.admin!.revokeGrant(actor, principalId, scope, role);
     audit(deps, {

@@ -118,6 +118,7 @@ export function createCompaction(deps: OrchestratorDeps): CompactionContext {
             phase: "compact",
             inputTokens: rec.inputTokens,
             sessionId: input.session.id,
+            ...(deps.harness.profile.id ? { harness: deps.harness.profile.id } : {}),
           }),
         );
       },

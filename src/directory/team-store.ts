@@ -17,13 +17,27 @@ export interface TeamStore {
 
 const MAX_TEAM_DEPTH = 16;
 
+export class BrokenTeamChainError extends Error {
+  teamId: string;
+  missingParentId: string;
+  constructor(teamId: string, missingParentId: string) {
+    super(`team ${teamId} has unknown parent ${missingParentId}`);
+    this.name = "BrokenTeamChainError";
+    this.teamId = teamId;
+    this.missingParentId = missingParentId;
+  }
+}
+
 export function teamAncestry(teams: Map<string, Team>, teamId: string): string[] {
   const chain: string[] = [];
   let current: string | null = teamId;
   while (current && chain.length < MAX_TEAM_DEPTH) {
     if (chain.includes(current)) break;
     const team = teams.get(current);
-    if (!team) break;
+    if (!team) {
+      if (!chain.length) break;
+      throw new BrokenTeamChainError(chain[chain.length - 1]!, current);
+    }
     chain.push(current);
     current = team.parentId;
   }

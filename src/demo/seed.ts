@@ -63,6 +63,12 @@ const PHASES: ReadonlyArray<{ phase: TokenLedgerPhase; weight: number }> = [
   { phase: "screen", weight: 0.1 },
 ];
 
+const HARNESSES: ReadonlyArray<{ id: string; weight: number }> = [
+  { id: "claude", weight: 0.6 },
+  { id: "codex", weight: 0.25 },
+  { id: "opencode", weight: 0.15 },
+];
+
 const OUTCOMES: ReadonlyArray<{ kind: RunOutcomeKind; weight: number; costScale: number }> = [
   { kind: "code-pushed", weight: 0.35, costScale: 2.4 },
   { kind: "artifact", weight: 0.25, costScale: 1.6 },
@@ -100,6 +106,7 @@ function ledgerEntryAt(rand: () => number, at: number, external: boolean): Token
   const principal = pick(rand, PRINCIPALS);
   const model = external ? pick(rand, MODELS.slice(0, 2)) : pick(rand, MODELS);
   const phase = external ? "external" : pick(rand, PHASES).phase;
+  const harness = external ? "claude" : pick(rand, HARNESSES).id;
   const heavy = phase === "turn" || phase === "external";
   const input = Math.round((heavy ? 900 : 250) * Math.exp(rand() * 2.2));
   const output = Math.round((heavy ? 220 : 60) * Math.exp(rand() * 2));
@@ -118,6 +125,7 @@ function ledgerEntryAt(rand: () => number, at: number, external: boolean): Token
     model: model.id,
     phase,
     ...(external ? { source: "claude-code" } : {}),
+    harness,
     input,
     output,
     cacheRead,
