@@ -46,25 +46,39 @@ LOS meters _inside_ the execution path, which changes what's possible:
 
 - **Exact, per-call accounting.** Every model call lands in a durable ledger with true
   input/output/cache token counts and harness-reported cost — by model, phase, person,
-  scope, session, and run. Not estimates. Not samples. Everything.
+  scope, session, run, engine, and source. Not estimates. Not samples. Everything.
 - **Budgets that enforce.** Allocations attach to the org, to teams (nested, aggregating
   their sub-teams), or to individuals. A soft allocation warns; a hard allocation
-  **refuses the turn**. The cap is a stop, not a notification.
-- **A receipt for every run.** Because LOS runs the work, spend attaches to what was
-  produced. Open any run and get an itemised receipt: each model call by phase, model
-  and engine, the true token counts, the outcome it produced — code pushed, artifact
-  shipped, sent internally, chat — and the budget stack it drew down, personal through
-  team to org, with what's left on each. Calls priced by estimate rather than by a
-  provider-reported cost are marked as such. "Why did this cost $0.46?" has an answer
-  you can paste into Slack.
+  **refuses the turn** before a single token is spent. The cap is a stop, not a
+  notification.
 - **The numbers that matter.** Effective $/MTok, cache-hit share, per-employee-per-month
-  spend, and estimated-vs-exact coverage, per team and per person, from
-  `GET /v1/admin/utb`. Every employee sees their own meter at `GET /v1/usage` before
-  anyone else sees a leaderboard.
+  spend, and estimated-vs-exact coverage, per team and per person.
+
+![Usage: personal spend, model and phase breakdowns, and what that spend produced](./docs/screenshots/page-usage-dark.png)
+
+### The receipt
+
+Because LOS runs the work, spend attaches to what was produced. Open any run and get an
+itemised receipt: each model call by phase, model and engine, the true token counts, the
+outcome it produced — code pushed, artifact shipped, sent internally, chat — and the
+budget stack it drew down, personal through team to org, with what's left on each and
+which one would refuse the next turn. Calls priced by estimate rather than by a
+provider-reported cost are marked. "Why did this cost $0.46?" has an answer you can paste
+into Slack.
 
 ![A receipt for a single run: itemised model calls, the outcome, and the budgets it drew down](./docs/screenshots/page-receipt-dark.png)
 
-Teams and allocations are managed live over the admin API:
+## Governance you can hand to an admin
+
+Who is on the meter, which team they answer to, and exactly what would refuse their next
+turn — on one page. Add and remove people, build the team tree, attach budgets at any
+level, grant and revoke admin. Every write is optimistic and reversible: if the server
+refuses one, the page says so where you're working, keeps what you typed, and rolls back
+the row it had already drawn.
+
+![Governance: roster, admin grants, per-person budgets, and the team tree](./docs/screenshots/page-governance-dark.png)
+
+Teams and allocations are also managed over the admin API:
 
 ```
 PUT /v1/admin/utb/teams        { "id": "eng", "name": "Engineering", "members": ["ada", "lin"] }
@@ -72,12 +86,49 @@ PUT /v1/admin/utb/allocations  { "id": "eng-monthly", "subject": "team:eng",
                                  "limitUsd": 500, "windowMs": 2592000000, "hard": true }
 ```
 
+## Built for the EU, not retrofitted for it
+
+A per-employee meter is a works-council question, and LOS is designed to survive that
+meeting rather than avoid it.
+
+- **The employee sees it first.** Every person's own meter shows the same metered numbers
+  an admin sees about them — spend, every breakdown, the outcome mix, the cost-per-outcome
+  ratio, and the budgets governing them. This is asserted by a test, so the guarantee
+  fails the build if it ever stops being true.
+- **Team-level ranking by default.** The leaderboard aggregates to teams unless an
+  operator explicitly opts into naming individuals.
+- **Individual reads are gated and audited.** Reading a person's usage needs a scoped
+  admin grant, and the read itself lands in the audit log — oversight is overseen.
+- **Budgets refuse turns; they do not report people.** A hard cap acts on the request.
+
+[`docs/compliance.md`](./docs/compliance.md) is written to be handed to a DPO or a works
+council, and states plainly which configurations need their agreement.
+
+## Bring what you already know
+
+Import your Claude and ChatGPT conversation exports and your Obsidian vault; LOS distils
+the facts worth keeping and shows you every one before a single line is written. Anything
+from an untrusted source is rewritten to read as a claim, with provenance, so an imported
+document can never quietly become an instruction.
+
+![Memory: the agent's durable facts, with import and full revision history](./docs/screenshots/page-memory-dark.png)
+
+## The rest of the company's AI, not just ours
+
+A harness that only meters itself is a partial answer, because your people are already
+using Claude Code, ChatGPT, Codex and the rest. Point any OpenTelemetry GenAI exporter at
+`POST /v1/ingest/otel` and that spend lands in the same ledger, under the same budgets,
+split by `source` so you see LOS work beside everything else. The same convention exports
+outward — Langfuse, Datadog, Grafana — so LOS doesn't ask you to abandon the
+observability stack you already run.
+
 ## Pick your engine
 
 LOS is a harness, not a model wrapper — and it refuses to marry your company to one
 vendor. Pi, OpenCode, Codex, and Claude Code all drive the same core, behind one fixed
 tool surface and one policy layer. Switch engines per turn, per scope, or org-wide;
-your memory, files, skills, budgets, and audit history don't move an inch.
+your memory, files, skills, budgets, and audit history don't move an inch. The ledger
+records which engine ran every call, so the receipt tells you that too.
 
 ## Security that assumes the worst
 
@@ -95,13 +146,24 @@ your memory, files, skills, budgets, and audit history don't move an inch.
 - **Everything audited.** Turns, tool calls, approvals, screen verdicts, egress, admin
   reads — including who looked at whose spend.
 
+## The rest of the workspace
+
+Projects, chats, files, crons, a per-person keychain, publishable apps, and shareable
+skills — each scoped, each metered, each audited.
+
+|                                                        |                                                    |
+| ------------------------------------------------------ | -------------------------------------------------- |
+| ![Projects](./docs/screenshots/page-projects-dark.png) | ![Crons](./docs/screenshots/page-crons-dark.png)   |
+| ![Files](./docs/screenshots/page-files-dark.png)       | ![Skills](./docs/screenshots/page-skills-dark.png) |
+
 ## Designed like a product, not a dashboard
 
 Dark-first, near-black surfaces with elevation done by light, not shadow; one electric
 accent used only where it means something; a calm, paper-toned light mode; full-width
-transcript rows that read like a document instead of a bubble fight. The entire system
-derives from design tokens, and the accent re-derives from your org's brand color at
-runtime — one env var and the whole interface is yours.
+transcript rows that read like a document instead of a bubble fight. Numerals are
+tabular throughout, so money never reflows as it updates. The entire system derives from
+design tokens, and the accent re-derives from your org's brand color at runtime — one env
+var and the whole interface is yours.
 
 ![The LOS web UI in light mode](./docs/screenshots/web-home-light.png)
 
@@ -121,10 +183,18 @@ npm run serve               # web UI on :8096
 ```
 
 `ADMIN_GRANTS` mints the first org admin. Without it nobody holds a grant, and Governance
-and Usage tell you to ask an org admin who does not exist yet. To skip granting yourself,
-run `npm run init:env` (the signing secrets are still required) and boot with
-`LOS_DEMO=1 npm run dev` and `WEB_UI_DEMO=1 npm run serve`: the instance
-seeds teams, budgets and 30 days of usage, and the web UI signs you in as an org admin.
+and Usage tell you to ask an org admin who does not exist yet.
+
+### Try it with no setup
+
+```bash
+npm run init:env            # the signing secrets are still required
+LOS_DEMO=1 npm run dev
+cd plugins/web-ui && WEB_UI_DEMO=1 npm run serve
+```
+
+Demo mode seeds a roster, a team tree, budgets and 30 days of usage, and signs you in as
+an org admin — so Governance, Usage and receipts all have something real to show.
 
 Without `DATABASE_URL`, LOS runs fully in-memory — perfect for kicking the tires.
 Point `DATABASE_URL` at Postgres and sessions, runs, crons, memory, audit, and the
@@ -157,30 +227,20 @@ runs in-process and hot-reloads when the installation changes. Everything specif
 one company lives in a deployment directory that the [`qm` CLI](./cli/README.md)
 validates and deploys to your own Fly.io or AWS account.
 
-## The rest of the company's AI, not just ours
-
-A harness that only meters itself is a partial answer, because your people are already
-using Claude Code, ChatGPT, Codex and the rest. LOS ingests those too: point any
-OpenTelemetry GenAI exporter at `POST /v1/ingest/otel` and that spend lands in the same
-ledger, under the same budgets, split by `source` so you can see LOS work beside
-everything else. The same convention exports outward — Langfuse, Datadog, Grafana —
-so LOS doesn't ask you to abandon the observability stack you already run.
-
-Memory imports the same way: bring your Claude and ChatGPT conversations and your
-Obsidian vault, and the facts worth keeping are distilled into the agent's memory —
-with anything from an untrusted source rewritten to read as a claim, with provenance,
-before it is ever stored.
-
 ## Roadmap
 
 - **Routing governance.** Frontier-model use outside an allowance pauses for a one-line
   justification through the same approval machinery the strict posture already uses.
+- **Per-model estimate pricing.** Calls a harness doesn't price are currently estimated
+  from one blended rate and flagged as estimates; a per-model table will tighten them.
 - **More surfaces.** Discord and iMessage alongside Slack and the web.
 - **Enterprise identity.** SCIM provisioning, SAML, exportable audit.
 
 ## Going deeper
 
 - [`docs/getting-started.md`](./docs/getting-started.md) — deploy for an organization
+- [`docs/compliance.md`](./docs/compliance.md) — what is metered, what workers see, and
+  the operator's obligations under EU law
 - [`adrs/`](./adrs) — design records, including the Unified Token Budget and
   observability strategy
 - [`.env.example`](./.env.example) — every knob, documented in place
