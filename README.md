@@ -19,8 +19,8 @@ agent does real work but answers to one person, holds their credentials in plain
 and multiplies into an ungoverned fleet the day your teammates copy it.
 
 LOS is what you get when you design for the whole company from the first line. Every
-employee gets an isolated workspace: their agent remembers *them*, holds *their* keys,
-runs *their* crons, and works on a durable computer where installed tools stay installed.
+employee gets an isolated workspace: their agent remembers _them_, holds _their_ keys,
+runs _their_ crons, and works on a durable computer where installed tools stay installed.
 Every Slack channel and project gets a shared scope with its own memory and files, so the
 agent in `#launch-week` knows what `#launch-week` knows — and nothing it shouldn't.
 Admins set the security posture, the model roster, and — uniquely — the token budget for
@@ -42,7 +42,7 @@ invoice arrives with no story attached. Cost-monitoring products watch this happ
 the outside — they read provider billing metadata after the fact, attribute it to an API
 key, and email you when it's too late.
 
-LOS meters *inside* the execution path, which changes what's possible:
+LOS meters _inside_ the execution path, which changes what's possible:
 
 - **Exact, per-call accounting.** Every model call lands in a durable ledger with true
   input/output/cache token counts and harness-reported cost — by model, phase, person,
@@ -50,13 +50,19 @@ LOS meters *inside* the execution path, which changes what's possible:
 - **Budgets that enforce.** Allocations attach to the org, to teams (nested, aggregating
   their sub-teams), or to individuals. A soft allocation warns; a hard allocation
   **refuses the turn**. The cap is a stop, not a notification.
-- **Attribution that reaches the work.** Because LOS runs the work, spend attaches to
-  what was produced — this session, this run, this phase — with cost-per-outcome
-  (a merged PR, a shipped app, a research brief) on the roadmap.
+- **A receipt for every run.** Because LOS runs the work, spend attaches to what was
+  produced. Open any run and get an itemised receipt: each model call by phase, model
+  and engine, the true token counts, the outcome it produced — code pushed, artifact
+  shipped, sent internally, chat — and the budget stack it drew down, personal through
+  team to org, with what's left on each. Calls priced by estimate rather than by a
+  provider-reported cost are marked as such. "Why did this cost $0.46?" has an answer
+  you can paste into Slack.
 - **The numbers that matter.** Effective $/MTok, cache-hit share, per-employee-per-month
   spend, and estimated-vs-exact coverage, per team and per person, from
   `GET /v1/admin/utb`. Every employee sees their own meter at `GET /v1/usage` before
   anyone else sees a leaderboard.
+
+![A receipt for a single run: itemised model calls, the outcome, and the budgets it drew down](./docs/screenshots/page-receipt-dark.png)
 
 Teams and allocations are managed live over the admin API:
 
@@ -79,7 +85,7 @@ your memory, files, skills, budgets, and audit history don't move an inch.
   call), `auto` (a classifier screens externally-sourced content for prompt injection
   before the model sees it), or `dangerous` — which narrower scopes can only tighten.
 - **A command policy that never sleeps.** Recursive deletes, force-pushes, destructive
-  SQL, and `curl | sh` require approval in *every* posture, `dangerous` included. The
+  SQL, and `curl | sh` require approval in _every_ posture, `dangerous` included. The
   scanner unwraps quoting, encoding, and nested shells before matching.
 - **Isolation as architecture.** Each scope's sandbox is its own computer. Egress runs
   through a policy proxy that hard-blocks cloud metadata endpoints. Credentials live in
@@ -151,16 +157,25 @@ runs in-process and hot-reloads when the installation changes. Everything specif
 one company lives in a deployment directory that the [`qm` CLI](./cli/README.md)
 validates and deploys to your own Fly.io or AWS account.
 
+## The rest of the company's AI, not just ours
+
+A harness that only meters itself is a partial answer, because your people are already
+using Claude Code, ChatGPT, Codex and the rest. LOS ingests those too: point any
+OpenTelemetry GenAI exporter at `POST /v1/ingest/otel` and that spend lands in the same
+ledger, under the same budgets, split by `source` so you can see LOS work beside
+everything else. The same convention exports outward — Langfuse, Datadog, Grafana —
+so LOS doesn't ask you to abandon the observability stack you already run.
+
+Memory imports the same way: bring your Claude and ChatGPT conversations and your
+Obsidian vault, and the facts worth keeping are distilled into the agent's memory —
+with anything from an untrusted source rewritten to read as a claim, with provenance,
+before it is ever stored.
+
 ## Roadmap
 
-- **Value per token.** Outcome classification (code pushed, sent internally, artifact
-  shipped, research) from delivery and git-broker events, then an efficiency leaderboard
-  that ranks quality-per-dollar — with judge scoring metered on the same ledger.
-- **Speak OpenTelemetry.** GenAI-convention spans for every call, pointable at the
-  observability stack you already run — Langfuse, Datadog, Grafana — without LOS
-  shipping a single extra stateful service.
 - **Routing governance.** Frontier-model use outside an allowance pauses for a one-line
   justification through the same approval machinery the strict posture already uses.
+- **More surfaces.** Discord and iMessage alongside Slack and the web.
 - **Enterprise identity.** SCIM provisioning, SAML, exportable audit.
 
 ## Going deeper
