@@ -83,23 +83,20 @@ function scopeFilterFor(scope: string): TokenLedgerQuery {
   return parseScopeId(scope).kind === "org" ? {} : { scopeLabel: scope };
 }
 
-export async function receipt(ctx: ApiCtx): Promise<void> {
-  const { res, deps, params } = ctx;
-  const authz = await requireScopedAdmin(ctx);
-  if (!authz) return;
-  const { actor, scope } = authz;
-  const runId = params.runId!;
-  audit(deps, { principalId: actor.id, action: "receipts.read", resource: runId, scopeLabel: scope });
-
-  const base: TokenLedgerQuery = { runId, ...scopeFilterFor(scope) };
+/**
+ * Build one run's receipt under an arbitrary ledger filter, so the admin route and the
+ * self-serve route produce the identical document from the identical code. The filter is
+ * the only thing that differs: an admin is bounded by their scope, a person by their own
+ * principal — which is what makes a self receipt safe to expose.
+ */
+export async function buildReceipt(
+  deps: ApiCtx["deps"],
+  runId: string,
+  filter: TokenLedgerQuery,
+): Promise<Record<string, unknown> | null> {
+  const base: TokenLedgerQuery = { runId, ...filter };
   const entries = (await deps.tokenLedger?.list({ ...base, limit: LEDGER_SCAN_LIMIT }).catch(() => [])) ?? [];
-  if (!entries.length) {
-    return sendJson(res, 404, {
-      error: "not_found",
-      runId,
-      message: `no metered work is recorded under run ${runId}`,
-    });
-  }
+  if (!entries.length) return null;
 
   const ordered = [...entries].sort((a, b) => a.at - b.at);
   const first = ordered[0]!;
@@ -121,8 +118,7 @@ export async function receipt(ctx: ApiCtx): Promise<void> {
   const ancestry = teamId ? ((await deps.teams?.ancestry(teamId).catch(() => [])) ?? []) : [];
   const allocations = await governingAllocations(deps, principalId, ancestry, Date.now());
 
-  return sendJson(res, 200, {
-    scopeId: scope,
+  return {
     runId,
     principalId,
     displayName: await displayNameOf(deps, principalId),
@@ -143,7 +139,24 @@ export async function receipt(ctx: ApiCtx): Promise<void> {
     team: teamId ? { id: teamId, name: teamNames.get(teamId) ?? teamId } : null,
     teamAncestry: ancestry.map((id) => ({ id, name: teamNames.get(id) ?? id })),
     allocations,
-  });
+  };
+}
+
+export function receiptNotFound(runId: string): Record<string, unknown> {
+  return { error: "not_found", runId, message: `no metered work is recorded under run ${runId}` };
+}
+
+export async function receipt(ctx: ApiCtx): Promise<void> {
+  const { res, deps, params } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  const { actor, scope } = authz;
+  const runId = params.runId!;
+  audit(deps, { principalId: actor.id, action: "receipts.read", resource: runId, scopeLabel: scope });
+
+  const built = await buildReceipt(deps, runId, scopeFilterFor(scope));
+  if (!built) return sendJson(res, 404, receiptNotFound(runId));
+  return sendJson(res, 200, { scopeId: scope, ...built });
 }
 
 interface Bucket {
@@ -183,22 +196,16 @@ function bucketOf(entries: readonly TokenLedgerEntry[]): Bucket {
   };
 }
 
-export async function listReceipts(ctx: ApiCtx): Promise<void> {
-  const { res, deps, url } = ctx;
-  const authz = await requireScopedAdmin(ctx);
-  if (!authz) return;
-  const { actor, scope } = authz;
-  audit(deps, { principalId: actor.id, action: "receipts.list", resource: "receipts", scopeLabel: scope });
-
-  const limit = listLimit(url);
-  const principalId = url.searchParams.get("principalId") || undefined;
+/** Shared by the admin list and the self-serve list; only the ledger filter differs. */
+export async function buildReceiptList(
+  deps: ApiCtx["deps"],
+  limit: number,
+  filter: TokenLedgerQuery,
+  principalId?: string,
+): Promise<{ limit: number; total: number; receipts: Record<string, unknown>[] }> {
   const entries =
     (await deps.tokenLedger
-      ?.list({
-        limit: LEDGER_SCAN_LIMIT,
-        ...scopeFilterFor(scope),
-        ...(principalId ? { principalId } : {}),
-      })
+      ?.list({ limit: LEDGER_SCAN_LIMIT, ...filter, ...(principalId ? { principalId } : {}) })
       .catch(() => [])) ?? [];
 
   const byRun = new Map<string, TokenLedgerEntry[]>();
@@ -208,7 +215,7 @@ export async function listReceipts(ctx: ApiCtx): Promise<void> {
     if (held) held.push(entry);
     else byRun.set(entry.runId, [entry]);
   }
-  if (!byRun.size) return sendJson(res, 200, { scopeId: scope, limit, total: 0, receipts: [] });
+  if (!byRun.size) return { limit, total: 0, receipts: [] };
 
   const outcomes: RunOutcomeRecord[] =
     (await deps.runOutcomes
@@ -225,8 +232,7 @@ export async function listReceipts(ctx: ApiCtx): Promise<void> {
     if (!names.has(outcome.principalId)) names.set(outcome.principalId, await displayNameOf(deps, outcome.principalId));
   }
 
-  return sendJson(res, 200, {
-    scopeId: scope,
+  return {
     limit,
     total: joined.length,
     receipts: joined.slice(0, limit).map(({ outcome, bucket }) => ({
@@ -244,5 +250,25 @@ export async function listReceipts(ctx: ApiCtx): Promise<void> {
       estimated: bucket.estimatedCalls > 0,
       at: outcome.at,
     })),
-  });
+  };
+}
+
+export function receiptListLimit(url: URL): number {
+  return listLimit(url);
+}
+
+export async function listReceipts(ctx: ApiCtx): Promise<void> {
+  const { res, deps, url } = ctx;
+  const authz = await requireScopedAdmin(ctx);
+  if (!authz) return;
+  const { actor, scope } = authz;
+  audit(deps, { principalId: actor.id, action: "receipts.list", resource: "receipts", scopeLabel: scope });
+
+  const built = await buildReceiptList(
+    deps,
+    listLimit(url),
+    scopeFilterFor(scope),
+    url.searchParams.get("principalId") || undefined,
+  );
+  return sendJson(res, 200, { scopeId: scope, ...built });
 }

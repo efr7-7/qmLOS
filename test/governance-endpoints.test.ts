@@ -64,7 +64,7 @@ async function buildDeps(): Promise<ServerDeps> {
     at: number,
     costUsd: number,
     model: string,
-    extra: { source?: string; harness?: string } = {},
+    extra: { source?: string; harness?: string; runId?: string } = {},
   ) => ({
     at,
     principalId,
@@ -73,6 +73,7 @@ async function buildDeps(): Promise<ServerDeps> {
     phase: extra.source ? ("external" as const) : ("turn" as const),
     ...(extra.source ? { source: extra.source } : {}),
     ...(extra.harness ? { harness: extra.harness } : {}),
+    ...(extra.runId ? { runId: extra.runId } : {}),
     input: 1_000,
     output: 200,
     cacheRead: 500,
@@ -80,12 +81,12 @@ async function buildDeps(): Promise<ServerDeps> {
     costUsd,
     estimated: !!extra.source,
   });
-  tokenLedger.record(entry("maya", NOW - 5 * DAY, 3, "claude-fable-5", { harness: "pi" }));
+  tokenLedger.record(entry("maya", NOW - 5 * DAY, 3, "claude-fable-5", { harness: "pi", runId: "r1" }));
   tokenLedger.record(
-    entry("maya", NOW - 2 * DAY, 1.5, "claude-sonnet-5", { source: "claude-code", harness: "claude" }),
+    entry("maya", NOW - 2 * DAY, 1.5, "claude-sonnet-5", { source: "claude-code", harness: "claude", runId: "r1" }),
   );
-  tokenLedger.record(entry("maya", NOW - DAY, 0.5, "claude-fable-5", { harness: "pi" }));
-  tokenLedger.record(entry("tomas", NOW - 3 * DAY, 2, "gpt-5.2", { harness: "codex" }));
+  tokenLedger.record(entry("maya", NOW - DAY, 0.5, "claude-fable-5", { harness: "pi", runId: "r2" }));
+  tokenLedger.record(entry("tomas", NOW - 3 * DAY, 2, "gpt-5.2", { harness: "codex", runId: "r3" }));
   tokenLedger.record(entry("drifter", NOW - DAY, 0.25, "claude-sonnet-5"));
 
   await runOutcomes.record({
@@ -463,14 +464,53 @@ test("an employee's own meter shows the same metered numbers their admin sees ab
   assert.deepEqual(mine.body.outcomes, theirs.body.outcomes, "outcome metrics match exactly");
   assert.deepEqual(mine.body.allocations, theirs.body.allocations, "the budgets governing them match exactly");
   assert.deepEqual(mine.body.team, theirs.body.team, "team attribution matches");
-  assert.equal(mine.body.totalCostUsd, theirs.body.totals.costUsd, "spend matches");
+  assert.deepEqual(mine.body.teamAncestry, theirs.body.teamAncestry, "the team chain matches");
+  assert.deepEqual(mine.body.totals, theirs.body.totals, "the totals object matches in shape and value");
+  assert.equal(mine.body.lastActiveAt, theirs.body.lastActiveAt, "last-active matches");
   assert.ok(mine.body.outcomes.costPerOutcomeUsd !== undefined, "self-view carries the efficiency ratio");
 
-  for (const dimension of ["byModel", "byPhase", "byHarness", "bySource"]) {
+  // Derived from the admin response, not hardcoded: a new admin-only dimension must fail
+  // this test rather than slip through a whitelist that nobody remembered to update.
+  const dimensions = Object.keys(theirs.body.breakdowns);
+  assert.ok(dimensions.length >= 4, "the drill-down still reports several dimensions");
+  for (const dimension of dimensions) {
     assert.deepEqual(
       mine.body.breakdowns[dimension],
       theirs.body.breakdowns[dimension],
       `${dimension} breakdown matches`,
     );
   }
+});
+
+test("a person can open the receipt for their own run, and only their own", async () => {
+  const deps = await buildDeps();
+  const mineRun = "r1"; // seeded against maya
+  const receipt = await callSurface(deps, `/v1/receipts/${mineRun}?principalId=maya`);
+  assert.equal(receipt.status, 200, "maya can open her own run");
+  assert.equal(receipt.body.runId, mineRun);
+  assert.equal(receipt.body.principalId, "maya");
+  assert.ok(Array.isArray(receipt.body.items) && receipt.body.items.length > 0, "the receipt is itemised");
+  assert.ok(Array.isArray(receipt.body.allocations), "and names the budgets it drew down");
+
+  // Someone else's run is absent, not merely forbidden — it leaks no existence.
+  const notMine = await callSurface(deps, `/v1/receipts/${mineRun}?principalId=tomas`);
+  assert.equal(notMine.status, 404, "another person's run is not readable");
+  assert.equal(notMine.body.error, "not_found");
+
+  // The self receipt is the same document the admin route produces.
+  const asAdmin = await call(deps, "GET", `/v1/admin/receipts/${mineRun}?scope=${encodeURIComponent(ORG)}`);
+  assert.equal(asAdmin.status, 200);
+  const { scopeId: _ignored, ...adminDoc } = asAdmin.body;
+  assert.deepEqual(receipt.body, adminDoc, "an employee's receipt is the admin's receipt");
+});
+
+test("the self receipt list shows only the caller's own runs", async () => {
+  const deps = await buildDeps();
+  const mine = await callSurface(deps, "/v1/receipts?principalId=maya&limit=50");
+  assert.equal(mine.status, 200);
+  assert.ok(mine.body.receipts.length > 0, "maya has receipts");
+  assert.ok(
+    mine.body.receipts.every((r: { principalId: string }) => r.principalId === "maya"),
+    "every row belongs to the caller",
+  );
 });

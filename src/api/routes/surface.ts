@@ -26,7 +26,8 @@ import { renderAgentApis } from "../agent-api-catalog.ts";
 import { mintCapabilityToken, CAPABILITY_TTL_MS } from "../../auth/capability-token.ts";
 import { pipeToResponse, sendJson } from "../http.ts";
 import { audit, isObj, orgScope } from "./shared.ts";
-import { enrich, governingAllocations, outcomeSummary } from "./admin/governance.ts";
+import { enrich, foldTotals, governingAllocations, outcomeSummary } from "./admin/governance.ts";
+import { buildReceipt, buildReceiptList, receiptListLimit, receiptNotFound } from "./admin/receipts.ts";
 import { type ApiCtx, type Route } from "./route.ts";
 import {
   ARTIFACT_TYPES,
@@ -370,17 +371,13 @@ async function getSelfUsage(ctx: ApiCtx): Promise<void> {
   const byPhase = await deps.tokenLedger.summary("phase", { since, principalId });
   const byHarness = await deps.tokenLedger.summary("harness", { since, principalId }).catch(() => []);
   const bySource = await deps.tokenLedger.summary("source", { since, principalId }).catch(() => []);
-  const totalCostUsd = byPhase.reduce((sum, row) => sum + row.costUsd, 0);
-  const totals = byPhase.reduce(
-    (acc, row) => ({
-      input: acc.input + row.input,
-      output: acc.output + row.output,
-      cacheRead: acc.cacheRead + row.cacheRead,
-      cacheWrite: acc.cacheWrite + row.cacheWrite,
-    }),
-    { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-  );
+  // foldTotals is the admin drill-down's own reducer — using it here is what makes the
+  // two totals objects identical in shape as well as in value.
+  const totals = foldTotals(byPhase);
+  const totalCostUsd = totals.costUsd;
   const inputSide = totals.input + totals.cacheRead + totals.cacheWrite;
+  // The roster shows an admin when this person was last active; they see it too.
+  const latest = await deps.tokenLedger.list({ principalId, limit: 1 }).catch(() => []);
 
   // Self-view parity: whatever an admin can see about this person's metered work, this
   // person can see about themselves — including the outcome mix and cost-per-outcome
@@ -397,7 +394,8 @@ async function getSelfUsage(ctx: ApiCtx): Promise<void> {
   return sendJson(res, 200, {
     since,
     totalCostUsd,
-    totals,
+    totals: enrich(totals),
+    lastActiveAt: latest[0]?.at ?? null,
     cacheReadShare: inputSide > 0 ? totals.cacheRead / inputSide : null,
     byModel,
     byPhase,
@@ -412,6 +410,36 @@ async function getSelfUsage(ctx: ApiCtx): Promise<void> {
     teamAncestry: ancestry.map((id) => ({ id, name: teamNames.get(id) ?? id })),
     allocations,
   });
+}
+
+/**
+ * A person's receipt for their own run. Identical document to the admin route — same
+ * builder — but the ledger filter is pinned to the caller's principal, so a run that is
+ * not theirs reads as absent rather than as forbidden. This is what lets
+ * docs/compliance.md claim per-run transparency without an admin grant.
+ */
+async function getSelfReceipt(ctx: ApiCtx): Promise<void> {
+  const { res, deps, url, params } = ctx;
+  const principalId = url.searchParams.get("principalId");
+  if (!principalId) return sendJson(res, 400, { error: "bad_request", message: "principalId required" });
+  const runId = params.runId!;
+  audit(deps, {
+    principalId,
+    action: "receipts.self.read",
+    resource: runId,
+    scopeLabel: makeScopeId("personal", principalId),
+  });
+  const built = await buildReceipt(deps, runId, { principalId });
+  if (!built) return sendJson(res, 404, receiptNotFound(runId));
+  return sendJson(res, 200, built);
+}
+
+async function listSelfReceipts(ctx: ApiCtx): Promise<void> {
+  const { res, deps, url } = ctx;
+  const principalId = url.searchParams.get("principalId");
+  if (!principalId) return sendJson(res, 400, { error: "bad_request", message: "principalId required" });
+  const built = await buildReceiptList(deps, receiptListLimit(url), { principalId }, principalId);
+  return sendJson(res, 200, built);
 }
 
 async function getSelfMemory(ctx: ApiCtx): Promise<void> {
@@ -1297,6 +1325,8 @@ export const surfaceRoutes: ReadonlyArray<Route<ApiCtx>> = [
   { method: "GET", path: "/v1/contexts", auth: "source", handle: listContexts },
   { method: "GET", path: "/v1/scope-resources", auth: "source", handle: listScopeResources },
   { method: "GET", path: "/v1/usage", auth: "source", handle: getSelfUsage },
+  { method: "GET", path: "/v1/receipts", auth: "source", handle: listSelfReceipts },
+  { method: "GET", path: "/v1/receipts/:runId", auth: "source", handle: getSelfReceipt },
   { method: "GET", path: "/v1/memory", auth: "source", handle: getSelfMemory },
   { method: "PUT", path: "/v1/memory", auth: "source", handle: putSelfMemory },
   {

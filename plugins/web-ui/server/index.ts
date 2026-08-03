@@ -1149,6 +1149,24 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
       return relay(res, r);
     }
 
+    // Self-serve receipts: the signed-in person's own runs, no admin grant. The core
+    // pins the ledger filter to this principal, so the id is not a lever.
+    if (method === "GET" && path === "/api/receipts") {
+      const limit = url.searchParams.get("limit");
+      const qs = new URLSearchParams({ principalId: user, ...(limit ? { limit } : {}) });
+      const r = await coreFetch("GET", `/v1/receipts?${qs.toString()}`);
+      return relay(res, r);
+    }
+
+    if (method === "GET" && path.startsWith("/api/receipts/")) {
+      const runId = decodeURIComponent(path.slice("/api/receipts/".length));
+      const r = await coreFetch(
+        "GET",
+        `/v1/receipts/${encodeURIComponent(runId)}?principalId=${encodeURIComponent(user)}`,
+      );
+      return relay(res, r);
+    }
+
     if (method === "GET" && path === "/api/admin/receipts") {
       const scope = url.searchParams.get("scope") || `org:${ORG}`;
       const limit = url.searchParams.get("limit");

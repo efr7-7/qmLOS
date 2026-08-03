@@ -1,6 +1,6 @@
 import { html, nothing, render, type TemplateResult } from "lit";
 import { Copy, GitCommitHorizontal, MessageSquare, Package, Send, X } from "lucide";
-import { api } from "./core-bridge";
+import { api, ApiError } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
 import { copyText, icon } from "./ui";
 import { emptyPlayground } from "./playground";
@@ -456,7 +456,12 @@ export async function openReceipt(runId: string, from?: HTMLElement | null): Pro
   loading = true;
   draw();
   try {
-    const loaded = await api<Receipt>(`/api/admin/receipts/${encodeURIComponent(runId)}`);
+    const loaded = await api<Receipt>(`/api/admin/receipts/${encodeURIComponent(runId)}`).catch((e) => {
+      // Without an admin grant the admin route is refused; a person may still read the
+      // receipt for their own run, and it is the identical document.
+      if (status(e) !== 403 && status(e) !== 401) throw e;
+      return api<Receipt>(`/api/receipts/${encodeURIComponent(runId)}`);
+    });
     if (open !== runId) return;
     receipt = loaded;
   } catch (e) {
@@ -467,11 +472,19 @@ export async function openReceipt(runId: string, from?: HTMLElement | null): Pro
   draw();
 }
 
+function status(e: unknown): number | null {
+  return e instanceof ApiError ? e.status : null;
+}
+
 export async function loadReceipts(opts: { principalId?: string; limit?: number } = {}): Promise<ReceiptRow[]> {
   const qs = new URLSearchParams();
   if (opts.principalId) qs.set("principalId", opts.principalId);
   qs.set("limit", String(opts.limit ?? 8));
-  const body = await api<{ receipts?: ReceiptRow[] }>(`/api/admin/receipts?${qs.toString()}`);
+  const body = await api<{ receipts?: ReceiptRow[] }>(`/api/admin/receipts?${qs.toString()}`).catch((e) => {
+    if (status(e) !== 403 && status(e) !== 401) throw e;
+    const self = new URLSearchParams({ limit: String(opts.limit ?? 8) });
+    return api<{ receipts?: ReceiptRow[] }>(`/api/receipts?${self.toString()}`);
+  });
   return body.receipts ?? [];
 }
 

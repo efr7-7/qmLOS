@@ -91,10 +91,12 @@ PUT /v1/admin/utb/allocations  { "id": "eng-monthly", "subject": "team:eng",
 A per-employee meter is a works-council question, and LOS is designed to survive that
 meeting rather than avoid it.
 
-- **The employee sees it first.** Every person's own meter shows the same metered numbers
-  an admin sees about them — spend, every breakdown, the outcome mix, the cost-per-outcome
-  ratio, and the budgets governing them. This is asserted by a test, so the guarantee
-  fails the build if it ever stops being true.
+- **The employee sees it first.** A person's own meter returns the same values the admin
+  drill-down returns about them — spend, every breakdown, the outcome mix, the
+  cost-per-outcome ratio, last-active, and the budgets governing them — and they can open
+  the receipt for their own run without an admin grant, getting the identical document an
+  admin would. Both are asserted by tests, so the guarantee fails the build if it stops
+  being true.
 - **Team-level ranking by default.** The leaderboard aggregates to teams unless an
   operator explicitly opts into naming individuals.
 - **Individual reads are gated and audited.** Reading a person's usage needs a scoped
