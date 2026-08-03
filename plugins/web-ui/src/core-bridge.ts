@@ -354,10 +354,13 @@ async function toCoreAttachment(a: PiAttachment): Promise<CoreAttachment> {
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** The API's "do this instead" line, when it sent one. Already folded into `message`. */
+  hint?: string;
+  constructor(message: string, status: number, hint?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    if (hint) this.hint = hint;
   }
 }
 
@@ -387,11 +390,13 @@ export async function api<T = unknown>(path: string, init?: RequestInit): Promis
   }
   if (!r.ok) {
     if (r.status === 401 && path !== "/signin") reportSigninRequired(body as SigninRequired);
-    const msg =
-      (body as { error?: string; message?: string })?.message ??
-      (body as { error?: string })?.error ??
-      `HTTP ${r.status}`;
-    throw new ApiError(msg, r.status);
+    const detail = body as { error?: string; message?: string; hint?: string };
+    const msg = detail?.message ?? detail?.error ?? `HTTP ${r.status}`;
+    // The API pairs a refusal with a hint that says what to do instead. Carry it into
+    // the message so every existing errMessage() call surfaces the guidance rather than
+    // stopping at "No conversations found in that export."
+    const hint = typeof detail?.hint === "string" ? detail.hint.trim() : "";
+    throw new ApiError(hint ? `${msg} ${hint}` : msg, r.status, hint || undefined);
   }
   return body as T;
 }

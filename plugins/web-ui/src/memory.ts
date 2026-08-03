@@ -46,8 +46,9 @@ function formatLabel(format: string): string {
 }
 
 /** Conversation exports are counted in conversations; a note is counted in lines. */
-function scannedUnit(format: string): string {
-  return format === "claude-export" || format === "openai-export" ? "conversations" : "lines";
+function scannedUnit(format: string, count: number): string {
+  const word = format === "claude-export" || format === "openai-export" ? "conversation" : "line";
+  return count === 1 ? word : `${word}s`;
 }
 
 export function resetMemoryState(): void {
@@ -170,8 +171,8 @@ function importPanel(): unknown {
         ? html`<div class="memory-import-preview">
             <div class="card-meta">
               ${formatLabel(importPreview.format)} · ${importPreview.source} · scanned ${importPreview.scanned}
-              ${scannedUnit(importPreview.format)} · ${importPreview.facts.length}
-              candidate facts
+              ${scannedUnit(importPreview.format, importPreview.scanned)} · ${importPreview.facts.length} candidate
+              facts
             </div>
             <div class="memory-import-facts">
               ${importPreview.facts.map(
@@ -182,11 +183,11 @@ function importPanel(): unknown {
                       data-focus-key=${`memory-import-fact-${i}`}
                       .checked=${importPreview!.picked.has(i)}
                       @change=${(e: Event) => {
-                      const on = (e.target as HTMLInputElement).checked;
-                      if (on) importPreview!.picked.add(i);
-                      else importPreview!.picked.delete(i);
-                      drawMemory();
-                    }}
+                        const on = (e.target as HTMLInputElement).checked;
+                        if (on) importPreview!.picked.add(i);
+                        else importPreview!.picked.delete(i);
+                        drawMemory();
+                      }}
                     /><span>${fact}</span>
                   </label>`,
               )}

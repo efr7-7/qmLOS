@@ -219,7 +219,10 @@ function fromMarkdown(content: string, source: string): MemoryImportResult {
 export function parseMemoryImport(filename: string, content: string): MemoryImportResult {
   const source = filename.trim() || "upload";
   if (!content.trim()) {
-    throw new MemoryImportError("That file is empty.", "Upload a Claude conversations.json export or a Markdown note.");
+    throw new MemoryImportError(
+      "That file is empty.",
+      "Upload a Claude or ChatGPT conversations.json export, or a Markdown (.md) note.",
+    );
   }
   const looksJson = /\.json$/i.test(source) || /^\s*[[{]/.test(content);
   if (looksJson) {
