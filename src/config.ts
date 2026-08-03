@@ -87,9 +87,11 @@ export interface Config {
   publicWebUrl?: string;
   flyAppName?: string;
   slack?: SlackPluginConfig;
+  losProfile?: "solo" | "team" | "org";
   runStore: "memory" | "postgres";
   skillSigningSecret?: string;
   seedSkills: boolean;
+  demoMode: boolean;
   skillsSeedDir: string;
   pluginSkillDirs: string[];
   deploymentLayerDir?: string;
@@ -501,6 +503,13 @@ function securityPostureEnvStrict(value: string | undefined): SecurityPosture {
   );
 }
 
+function losProfileEnvStrict(value: string | undefined): Config["losProfile"] {
+  if (value === undefined || value.trim() === "") return undefined;
+  const profile = value.trim().toLowerCase();
+  if (profile === "solo" || profile === "team" || profile === "org") return profile;
+  throw new Error(`LOS_PROFILE=${JSON.stringify(value)} is not recognized — use solo, team, or org, or unset it.`);
+}
+
 function securityScreenBackendEnvStrict(value: string | undefined): Config["securityScreenBackend"] {
   if (value === undefined || value.trim() === "") return "model";
   const backend = value.trim().toLowerCase();
@@ -788,9 +797,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ...(env.PUBLIC_WEB_URL ? { publicWebUrl: env.PUBLIC_WEB_URL } : {}),
     ...(env.FLY_APP_NAME ? { flyAppName: env.FLY_APP_NAME } : {}),
     ...(slack ? { slack } : {}),
+    ...(losProfileEnvStrict(env.LOS_PROFILE) ? { losProfile: losProfileEnvStrict(env.LOS_PROFILE) } : {}),
     runStore,
     ...(env.SKILL_SIGNING_SECRET ? { skillSigningSecret: env.SKILL_SIGNING_SECRET } : {}),
     seedSkills: boolEnvStrict("SEED_SKILLS", env.SEED_SKILLS) ?? true,
+    demoMode: boolEnvStrict("LOS_DEMO", env.LOS_DEMO) ?? false,
     skillsSeedDir: resolve(env.SKILLS_SEED_DIR ?? "./skills-seed"),
     pluginSkillDirs: csvPaths(env.PLUGIN_SKILLS_DIRS) ?? defaultPluginSkillDirs(),
     ...(env.DEPLOYMENT_LAYER ? { deploymentLayerDir: resolve(env.DEPLOYMENT_LAYER) } : {}),

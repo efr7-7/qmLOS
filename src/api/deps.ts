@@ -86,6 +86,7 @@ export interface ServerDeps {
   modelCredentials?: ModelCredentialStore;
   modelCredentialFetch?: typeof fetch;
   brandingDefault?: { accent?: string; mark?: string; selfLabel?: string };
+  losProfile?: "solo" | "team" | "org";
   harnessId?: string;
   admin?: AdminService;
   rateLimiter?: RateLimiter;

@@ -107,6 +107,7 @@ function drawMemory(loading = false): void {
             ? html`<textarea
                 class="memory-text"
                 data-focus-key="memory-raw"
+                placeholder="Nothing remembered yet — say something worth keeping."
                 spellcheck="false"
                 ?disabled=${loading || memorySaving}
                 @input=${(e: Event) => {

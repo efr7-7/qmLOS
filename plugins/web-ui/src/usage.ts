@@ -343,7 +343,8 @@ function allocationRows(rows: Allocation[]): TemplateResult {
       const spent = a.spentUsd == null ? null : n(a.spentUsd);
       const share = spent !== null && limit > 0 ? Math.min(1, spent / limit) : 0;
       const over = spent !== null && limit > 0 && spent >= limit;
-      return html`<div class="usage-alloc ${over ? "over" : ""}">
+      const level = over ? "is-over" : share >= 0.8 ? "is-warn" : "";
+      return html`<div class="usage-alloc ${level}">
         <div class="usage-alloc-head">
           <span class="usage-alloc-subject">${subjectLabel(String(a.subject ?? ""))}</span>
           <span class="usage-alloc-kind ${a.hard ? "hard" : ""}">${a.hard ? "HARD" : "SOFT"}</span>
@@ -352,26 +353,35 @@ function allocationRows(rows: Allocation[]): TemplateResult {
             <span class="usage-alloc-window">${windowLabel(n(a.windowMs) || 86_400_000)}</span>
           </span>
         </div>
-        ${meter(share, over ? "over" : "")}
+        ${meter(share, level)}
       </div>`;
     })}
   </div>`;
+}
+
+function soloUsage(o: OrgUtb): boolean {
+  return typeof o.headcount === "number" && Number.isFinite(o.headcount) && o.headcount <= 1;
 }
 
 function orgSection(o: OrgUtb, board: Leaderboard | null): TemplateResult {
   const models = o.groups?.model ?? [];
   const sources = o.groups?.source ?? [];
   const orgTokens = models.reduce((a, r) => a + rowTokens(r), 0);
+  const solo = soloUsage(o);
   return html`<section class="usage-section">
-    ${kicker("Organization · this month")}
+    ${kicker(solo ? "Everything you've spent · this month" : "Organization · this month")}
     <div class="usage-stats">
       ${tile(
-        "Org spend",
+        solo ? "Total spend" : "Org spend",
         money(o.totalCostUsd),
-        html`<div class="usage-tile-sub">${fmtTokens(orgTokens)} tokens org-wide</div>`,
+        html`<div class="usage-tile-sub">${fmtTokens(orgTokens)} tokens ${solo ? "all-in" : "org-wide"}</div>`,
       )}
-      ${tile("PEPM", money(o.pepmUsd), html`<div class="usage-tile-sub">per employee, per month</div>`)}
-      ${tile("Headcount", String(n(o.headcount)), html`<div class="usage-tile-sub">people on the meter</div>`)}
+      ${solo ? nothing : tile("PEPM", money(o.pepmUsd), html`<div class="usage-tile-sub">per employee, per month</div>`)}
+      ${
+        solo
+          ? nothing
+          : tile("Headcount", String(n(o.headcount)), html`<div class="usage-tile-sub">people on the meter</div>`)
+      }
     </div>
     ${
       allocations?.length
@@ -382,10 +392,14 @@ function orgSection(o: OrgUtb, board: Leaderboard | null): TemplateResult {
           )
         : nothing
     }
-    ${models.length ? card("By model", "Effective rate and spend across the org.", orgModelTable(models)) : nothing}
+    ${
+      models.length
+        ? card("By model", solo ? "Effective rate and spend, per model." : "Effective rate and spend across the org.", orgModelTable(models))
+        : nothing
+    }
     ${sources.length ? card("By source", "Which surfaces the tokens flow through.", sourceSplit(sources)) : nothing}
     ${
-      board?.rows?.length
+      !solo && board?.rows?.length
         ? card("Team leaderboard", "Ranked by cost per outcome — lower is better.", leaderboardTable(board))
         : nothing
     }

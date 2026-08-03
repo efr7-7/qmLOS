@@ -2,7 +2,7 @@ export const BARREL_GAIN = 0.1;
 export const BARREL_PINCH = 0.085;
 export const BARREL_EDGE = 0.05;
 export const ABERRATION_UV = 0.0028;
-export const VIGNETTE = 0.7;
+export const VIGNETTE = 0.0;
 export const TONEMAP_EXPOSURE = 2.2;
 export const CURVE_RAMP_SEC = 3.0;
 

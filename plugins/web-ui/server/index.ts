@@ -18,7 +18,7 @@ import {
   PayloadTooLargeError,
   serveEmojiFavicon,
 } from "../../chassis/src/http.ts";
-import { verifyPortalIdentity, PORTAL_IDENTITY_HEADER } from "../../chassis/src/portal-identity.ts";
+import { mintPortalIdentity, verifyPortalIdentity, PORTAL_IDENTITY_HEADER } from "../../chassis/src/portal-identity.ts";
 import { createBrandingCache, injectBranding } from "../../chassis/src/branding.ts";
 import {
   CORE_API_URL as CORE,
@@ -31,6 +31,7 @@ import {
 const PORT = portFromEnv(8096);
 const PUBLIC_URL = (process.env.WEB_UI_PUBLIC_URL ?? `http://localhost:${PORT}`).replace(/\/$/, "");
 const WEB_UI_DEV = process.env.WEB_UI_DEV === "1";
+const WEB_UI_DEMO = process.env.WEB_UI_DEMO === "1";
 const ALLOW_UNSIGNED_TEST_IDENTITY =
   process.env.NODE_ENV === "test" && process.env.ALLOW_UNSIGNED_TEST_IDENTITY === "1";
 const COOKIE_AUTH = !CORE_SIGNING_SECRET || ALLOW_UNSIGNED_TEST_IDENTITY;
@@ -258,12 +259,14 @@ function authenticate(req: IncomingMessage): { identity: Identity } | { denied: 
     user = claims.p;
     name = claims.n ?? null;
     impersonator = claims.imp ?? null;
-  } else {
-    if (!COOKIE_AUTH) return { denied: "unauthenticated" };
+  } else if (COOKIE_AUTH || WEB_UI_DEMO) {
     user = cookie(req, "webuiuser");
     name = cookie(req, "webuiuser_name");
     impersonator = cookie(req, "webui_impersonator");
+  } else {
+    return { denied: "unauthenticated" };
   }
+  if (!user && WEB_UI_DEMO) user = "demo";
   if (!user) return { denied: "unauthenticated" };
   if (ALLOW.length > 0 && !ALLOW.includes(user)) return { denied: "not_allowed" };
   return { identity: { user, name: name?.trim() || null, impersonator: impersonator ?? null } };
@@ -1133,17 +1136,19 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
 
     if (method === "GET" && path === "/api/admin/utb") {
       const scope = url.searchParams.get("scope") || `org:${ORG}`;
-      const r = await coreFetchCap("GET", `/v1/admin/utb?scope=${encodeURIComponent(scope)}`);
+      const r = await coreFetch("GET", `/v1/admin/utb?scope=${encodeURIComponent(scope)}`);
       return relay(res, r);
     }
 
     if (method === "GET" && path === "/api/admin/utb/leaderboard") {
-      const r = await coreFetchCap("GET", "/v1/admin/utb/leaderboard");
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const r = await coreFetch("GET", `/v1/admin/utb/leaderboard?scope=${encodeURIComponent(scope)}`);
       return relay(res, r);
     }
 
     if (method === "GET" && path === "/api/admin/utb/allocations") {
-      const r = await coreFetchCap("GET", "/v1/admin/utb/allocations");
+      const scope = url.searchParams.get("scope") || `org:${ORG}`;
+      const r = await coreFetch("GET", `/v1/admin/utb/allocations?scope=${encodeURIComponent(scope)}`);
       return relay(res, r);
     }
 
@@ -1911,7 +1916,12 @@ export const handler = async (req: IncomingMessage, res: ServerResponse) => {
   res.setHeader("x-content-type-options", "nosniff");
   res.setHeader("x-frame-options", "DENY");
   const raw = req.headers[PORTAL_IDENTITY_HEADER];
-  const token = Array.isArray(raw) ? raw[0] : raw;
+  const incoming = Array.isArray(raw) ? raw[0] : raw;
+  const token =
+    incoming ??
+    (WEB_UI_DEMO && PORTAL_IDENTITY_SECRET
+      ? mintPortalIdentity({ p: "demo", n: "Demo", exp: Date.now() + 300_000 }, PORTAL_IDENTITY_SECRET)
+      : undefined);
   try {
     await portalTokenStore.run(token, () => routeRequest(req, res));
   } catch (err) {

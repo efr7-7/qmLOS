@@ -22,7 +22,7 @@ export function icon(node: IconNode, size = 18): SVGElement {
   return el;
 }
 
-const ASCII_RAMP = [" ", " ", " ", " ", " ", "·", "·", "·", ":", "░", "▒"];
+const ASCII_RAMP = [" ", " ", " ", " ", " ", "·", "·", "·", "·", ":", ":"];
 
 export function asciiField(cols: number, rows: number): string {
   const lines: string[] = [];

@@ -352,7 +352,7 @@ export async function listAdminAudit(ctx: ApiCtx): Promise<void> {
   return sendJson(res, 200, { scopeId: scope, events });
 }
 
-const UTB_GROUPS = ["principal", "scope", "model", "phase"] as const;
+const UTB_GROUPS = ["principal", "scope", "model", "phase", "source"] as const;
 const UTB_DEFAULT_WINDOW_MS = 30 * 86_400_000;
 
 export async function utbSummary(ctx: ApiCtx): Promise<void> {

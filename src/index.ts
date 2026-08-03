@@ -34,6 +34,7 @@ const server = createServer(built.app, {
   providerKeys: providerKeysPresent(config),
   modelCredentials: built.modelCredentials,
   ...(config.brandingDefault ? { brandingDefault: config.brandingDefault } : {}),
+  ...(config.losProfile ? { losProfile: config.losProfile } : {}),
   harnessId: config.harness,
   connectorTokens: built.connectorTokens,
   slackInstallation: built.slackInstallation,
@@ -98,6 +99,7 @@ const server = createServer(built.app, {
 await built.config.hydrate?.();
 await built.identity.hydrate();
 await built.deploymentLayerReady;
+await built.demoSeedReady;
 built.deploymentLayerRefresh.start();
 built.runtime.start();
 

@@ -173,6 +173,13 @@ function pushCell(
   state.count++;
 }
 
+export interface ExcludeRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
 export interface ComposeArgs {
   grid: FieldGrid;
   atlas: GlyphAtlas;
@@ -189,6 +196,7 @@ export interface ComposeArgs {
   shocks?: Shock[];
   turbulence?: number;
   wavePattern?: WavePattern;
+  exclude?: ExcludeRect | null;
 }
 
 export type WavePattern = "wavefront" | "ripples" | "flow" | "cloth";
@@ -217,7 +225,7 @@ const vnoise = (x: number, y: number): number => {
 };
 
 export function composeField(args: ComposeArgs): number {
-  const { grid, atlas, buffers, source, target, elapsed, paint, logo, slotOf, trail, shocks, turbulence } = args;
+  const { grid, atlas, buffers, source, target, elapsed, paint, logo, slotOf, trail, shocks, turbulence, exclude } = args;
   const wavePattern = args.wavePattern ?? "wavefront";
   const trailStrength = args.trailStrength ?? 1;
   const flare = args.trailFlare;
@@ -231,7 +239,7 @@ export function composeField(args: ComposeArgs): number {
   const lum = 0.299 * logo[0] + 0.587 * logo[1] + 0.114 * logo[2];
   const hi: [number, number, number] = lum < 0.5
     ? [mix(logo[0], 1, 0.5), mix(logo[1], 1, 0.5), mix(logo[2], 1, 0.5)]
-    : [mix(logo[0], 0, 0.35), mix(logo[1], 0, 0.35), mix(logo[2], 0, 0.35)];
+    : [mix(logo[0], 0, 0.12), mix(logo[1], 0, 0.12), mix(logo[2], 0, 0.12)];
   const lines = source;
   const tw = target.rows;
   const tWidth = tw[0]?.length ?? 0;
@@ -276,9 +284,10 @@ export function composeField(args: ComposeArgs): number {
       if (inLogo) {
         const wordChar = tw[ty][tx];
         if (wordChar && wordChar !== " ") {
-          ch = String.fromCharCode(
-            round(mix(ch.charCodeAt(0), wordChar.charCodeAt(0), formation)),
-          );
+          const wc = wordChar.charCodeAt(0);
+          ch = formation >= 1
+            ? wordChar
+            : String.fromCharCode(round(mix(ch.charCodeAt(0), wc > 126 ? 35 : wc, formation)));
           resolved = ch;
         } else if (formation > 0.5) {
           ch = SPACE;
@@ -339,6 +348,11 @@ export function composeField(args: ComposeArgs): number {
 
       const px = col * atlas.advance + dx * halfW;
       const by = baseline + dy * halfH;
+      if (exclude && !inLogo) {
+        const cxp = px + atlas.advance * 0.5;
+        const cyp = by - atlas.baseline + atlas.cellH * 0.5;
+        if (cxp > exclude.x0 && cxp < exclude.x1 && cyp > exclude.y0 && cyp < exclude.y1) continue;
+      }
       const fx = (col * 2) / grid.cols - 1;
       const fy = 1 - (row * 2) / grid.rows;
       const srcRow = floor(((ry + 1) / 2) * grid.rows);

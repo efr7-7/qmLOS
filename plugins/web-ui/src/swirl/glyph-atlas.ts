@@ -61,12 +61,14 @@ export function buildAtlas(
       const idx = w * glyphs.length + i;
       const cx = (idx % cols) * cellW;
       const cy = floor(idx / cols) * cellH;
-      ctx.fillText(glyphs[i], cx + pad, cy + baseline);
+      if (glyphs[i] === "█") ctx.fillRect(cx, cy, cellW, cellH);
+      else ctx.fillText(glyphs[i], cx + pad, cy + baseline);
+      const inset = glyphs[i] === "█" ? 2 : 0;
       uvs[idx] = [
-        cx / scratch.width,
-        cy / scratch.height,
-        (cx + cellW) / scratch.width,
-        (cy + cellH) / scratch.height,
+        (cx + inset) / scratch.width,
+        (cy + inset) / scratch.height,
+        (cx + cellW - inset) / scratch.width,
+        (cy + cellH - inset) / scratch.height,
       ];
     }
   }

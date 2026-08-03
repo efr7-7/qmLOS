@@ -5,6 +5,7 @@ import {
   FORMATION_SEC,
   makeBuffers,
   makeTarget,
+  type ExcludeRect,
   type FieldBuffers,
   type FieldGrid,
   type InkPaint,
@@ -12,11 +13,13 @@ import {
 import { depositTrail, makeTrailField, stepTrail } from "./trail-field.ts";
 
 export const LOS_ROWS = [
-  "    __    ____  _____",
-  "   / /   / __ \\/ ___/",
-  "  / /   / / / /\\__ \\ ",
-  " / /___/ /_/ /___/ / ",
-  "/_____/\\____//____/  ",
+  "██         ████████   ████████",
+  "██         ██    ██   ██      ",
+  "██         ██    ██   ██      ",
+  "██         ██    ██   ████████",
+  "██         ██    ██         ██",
+  "██         ██    ██         ██",
+  "████████   ████████   ████████",
 ];
 
 const SOURCE_LINES = [
@@ -41,12 +44,12 @@ const ZOOM = 0.72;
 const GROUND = "#0b0d10";
 const ACCENT_FALLBACK = "#34d9ab";
 const INK_BASE = "#2a3b36";
-const INK_MIX = 0.5;
+const INK_MIX = 0.58;
 const LOGO_LIFT = 0.08;
 const FLARE_LIFT = 0.75;
-const SCANLINE = 0.22;
-const ABERRATION = 0.4;
-const CURVATURE = 0.45;
+const SCANLINE = 0;
+const ABERRATION = 0;
+const CURVATURE = 0;
 const TRAIL_STRENGTH = 1.3;
 const VEL_SMOOTH = 0.35;
 
@@ -75,7 +78,7 @@ function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }
 
-const GLYPHS = Array.from({ length: 95 }, (_u, i) => String.fromCharCode(32 + i));
+const GLYPHS = [...Array.from({ length: 95 }, (_u, i) => String.fromCharCode(32 + i)), "█"];
 const GLYPH_LOOKUP = new Map(GLYPHS.map((g, i) => [g, i]));
 const SPACE_SLOT = GLYPH_LOOKUP.get(" ") ?? 0;
 const slotOf = (ch: string, weight: number) =>
@@ -129,6 +132,24 @@ export function mountSwirl(host: HTMLElement): () => void {
 
   const pointer = { active: false, nx: 0, ny: 0, px: 0, py: 0, pt: 0, vx: 0, vy: 0 };
 
+  const measureExclude = (): ExcludeRect | null => {
+    const btn = gate.querySelector(".gate-ascii-btn");
+    if (!btn) return null;
+    const cr = canvas.getBoundingClientRect();
+    if (!cr.width || !cr.height) return null;
+    const b = btn.getBoundingClientRect();
+    if (!b.width || !b.height) return null;
+    const sx = cw / cr.width;
+    const sy = ch / cr.height;
+    const pad = 14;
+    return {
+      x0: (b.left - cr.left - pad) * sx,
+      y0: (b.top - cr.top - pad) * sy,
+      x1: (b.right - cr.left + pad) * sx,
+      y1: (b.bottom - cr.top + pad) * sy,
+    };
+  };
+
   const drawFrame = (elapsed: number) => {
     if (!atlas || !grid || !buffers) return;
     const count = composeField({
@@ -144,6 +165,7 @@ export function mountSwirl(host: HTMLElement): () => void {
       trail,
       trailStrength: TRAIL_STRENGTH,
       trailFlare: flare,
+      exclude: measureExclude(),
     });
     renderer.drawField(count, grid, buffers, bg);
     renderer.drawCrt(elapsed * 0.001, cw, ch, {

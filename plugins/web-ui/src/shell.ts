@@ -271,10 +271,10 @@ function mountSigninHalo(): void {
   const host = (appEl as HTMLElement).querySelector<HTMLElement>(".signin-halo");
   if (!host || host.childElementCount > 0) return;
   const token = ++heroToken;
-  void import("./sightline/mount.ts")
+  void import("./swirl/mount.ts")
     .then((mod) => {
       if (token !== heroToken || !host.isConnected) return;
-      heroCleanup = mod.mountSightline(host);
+      heroCleanup = mod.mountSwirl(host);
     })
     .catch(() => undefined);
 }
@@ -291,10 +291,6 @@ function gateShell(body: unknown) {
   return html`
     <div class="signin">
       <div class="signin-halo" aria-hidden="true"></div>
-      <header class="gate-brand">
-        ${brandMark()}<span>${brandName()}</span>
-        ${authMode === "dev" ? html`<span class="dev-chip">DEV</span>` : nothing}
-      </header>
       <div class="gate-meta" aria-hidden="true">LINE OF SIGHT // MIT</div>
       ${body}
     </div>
@@ -310,6 +306,37 @@ function gateDock(status: string, line: unknown, action: unknown) {
       </div>
       ${action === nothing ? nothing : html`<div class="gate-actions">${action}</div>`}
     </div>
+  `;
+}
+
+interface AsciiButtonOpts {
+  onClick?: (e: Event) => void;
+  submit?: boolean;
+  disabled?: boolean;
+  immediate?: boolean;
+  ghost?: boolean;
+}
+
+function asciiButton(label: string, opts: AsciiButtonOpts = {}) {
+  const inner = `  ${label}  `;
+  const bar = "─".repeat(inner.length);
+  const rows = [`╭${bar}╮`, `│${inner}│`, `╰${bar}╯`];
+  const cells = rows.map((row, r) =>
+    Array.from(row).map((chr, c) => {
+      const frame = r !== 1 || c === 0 || c === row.length - 1;
+      return html`<span class=${frame ? "f" : "l"} style=${`--ci:${c}`}>${chr}</span>`;
+    }),
+  );
+  return html`
+    <button
+      class="gate-ascii-btn${opts.ghost ? " ghost" : ""}${opts.immediate ? " now" : ""}"
+      type=${opts.submit ? "submit" : "button"}
+      ?disabled=${opts.disabled === true}
+      aria-label=${label}
+      @click=${opts.onClick}
+    ><pre aria-hidden="true">${cells[0]}
+${cells[1]}
+${cells[2]}</pre></button>
   `;
 }
 
@@ -379,7 +406,7 @@ function portalGate() {
     gateDock(
       ended ? `${brandName()} // SESSION ENDED` : `${brandName()} // READY`,
       ended ? "Sign in again." : "Sign in to continue.",
-      html`<button class="gate-btn" type="button" @click=${signInWithPortal}>Sign in</button>`,
+      asciiButton("SIGN IN →", { onClick: signInWithPortal }),
     ),
   );
 }
@@ -391,7 +418,7 @@ function deniedGate() {
       authMode === "dev"
         ? html`This account isn't listed in <b>WEB_UI_PRINCIPALS</b>.`
         : "This account isn't allowed here. Ask an administrator.",
-      html`<button class="gate-btn ghost" type="button" @click=${signOut}>Sign out</button>`,
+      asciiButton("SIGN OUT", { onClick: signOut, ghost: true }),
     ),
   );
 }
@@ -405,7 +432,7 @@ function unreachableGate() {
     gateDock(
       `${brandName()} // UNREACHABLE`,
       "The core didn't respond.",
-      html`<button class="gate-btn" type="button" @click=${retryBoot}>Retry</button>`,
+      asciiButton("RETRY →", { onClick: retryBoot }),
     ),
   );
 }
@@ -455,9 +482,11 @@ function devGate(gate: { value?: string; error?: string; pending?: boolean }) {
           .value=${gate.value ?? ""}
           ?disabled=${gate.pending === true}
         />
-        <button class="gate-btn" type="submit" ?disabled=${gate.pending === true}>
-          ${gate.pending ? "Signing in…" : "Continue"}
-        </button>
+        ${asciiButton(gate.pending ? "SIGNING IN…" : "CONTINUE →", {
+          submit: true,
+          disabled: gate.pending === true,
+          immediate: gate.value !== undefined || gate.error !== undefined || gate.pending === true,
+        })}
       </div>
     </form>
   `);

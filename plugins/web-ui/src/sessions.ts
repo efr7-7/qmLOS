@@ -620,7 +620,7 @@ function chatPageRow(s: CoreSession): TemplateResult {
       style=${s.color ? `--session-color:${s.color}` : nothing}
     >
       <button class="chat-row-open" type="button" @click=${() => void openSession(s)}>
-        <span class="list-row-title">${sessionChip(s)}${statusMarks(s)}${groupDmTitle(s)}</span>
+        <span class="list-row-title">${sessionChip(s)}<span class="row-status-slot">${statusMarks(s)}</span>${groupDmTitle(s)}</span>
         <span class="list-row-meta">
           ${scopeChip(s.scopeId, s.channelName ?? null)}
           ${surfaceOf(s) === "slack" ? html`<span class="surface surface-slack">${slackLogo(13)}</span>` : nothing}

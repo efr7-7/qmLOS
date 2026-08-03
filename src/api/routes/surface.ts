@@ -923,6 +923,7 @@ async function getSurfaceConfig(ctx: ApiCtx): Promise<void> {
     harnessId,
     ...(managedKeys ? { modelProviderConfigured: Object.values(managedKeys).some(Boolean) } : {}),
     externalSlackParticipants,
+    ...(deps.losProfile ? { profile: deps.losProfile } : {}),
     ...(Object.keys(resolvedBranding).length ? { branding: resolvedBranding } : {}),
   });
 }
