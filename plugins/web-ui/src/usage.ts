@@ -23,6 +23,15 @@ interface UsageRow {
   estimatedShare?: number;
 }
 
+interface OutcomeSummary {
+  runs?: number;
+  produced?: number;
+  costUsd?: number;
+  byOutcome?: Record<string, number>;
+  costPerOutcomeUsd?: number | null;
+  ledgerCostPerOutcomeUsd?: number | null;
+}
+
 interface UsageSummary {
   since?: string | number;
   totalCostUsd?: number;
@@ -30,6 +39,13 @@ interface UsageSummary {
   cacheReadShare?: number;
   byModel?: UsageRow[];
   byPhase?: UsageRow[];
+  // Present for every signed-in person, admin or not — the self-view parity that
+  // docs/compliance.md promises. Rendered from here so an employee does not need an
+  // admin grant (or a terminal) to see what is recorded about them.
+  breakdowns?: { byModel?: UsageRow[]; byPhase?: UsageRow[]; byHarness?: UsageRow[]; bySource?: UsageRow[] };
+  outcomes?: OutcomeSummary;
+  team?: { id?: string; name?: string } | null;
+  allocations?: Allocation[];
 }
 
 interface OrgUtb {
@@ -307,7 +323,32 @@ function leaderboardTable(board: Leaderboard): TemplateResult {
   </div>`;
 }
 
+const OUTCOME_LABELS: Array<[string, string]> = [
+  ["code-pushed", "Pushed code"],
+  ["artifact", "Shipped an artifact"],
+  ["sent-internal", "Sent internally"],
+  ["chat", "Answered in chat"],
+];
+
+function outcomeStrip(o: OutcomeSummary): TemplateResult {
+  const by = o.byOutcome ?? {};
+  const total = OUTCOME_LABELS.reduce((sum, [key]) => sum + n(by[key]), 0);
+  return html`<div class="usage-outcomes">
+    ${OUTCOME_LABELS.map(([key, label]) => {
+      const count = n(by[key]);
+      return html`<div class="usage-outcome">
+        <div class="usage-outcome-head">
+          <span class="usage-outcome-label">${label}</span>
+          <span class="usage-outcome-count">${fmtCalls(count)}</span>
+        </div>
+        ${meter(total > 0 ? count / total : 0)}
+      </div>`;
+    })}
+  </div>`;
+}
+
 function personalSection(u: UsageSummary): TemplateResult {
+  const outcomes = u.outcomes ?? null;
   const totals = u.totals ?? {};
   const totalTokens = n(totals.input) + n(totals.output) + n(totals.cacheRead) + n(totals.cacheWrite);
   const models = u.byModel ?? [];
@@ -335,6 +376,15 @@ function personalSection(u: UsageSummary): TemplateResult {
     </div>
     ${models.length ? card("By model", "Where your spend went, per model.", myModelTable(models)) : nothing}
     ${phases.length ? card("By phase", "Cost split across the agent's working phases.", phaseStrip(phases)) : nothing}
+    ${
+      outcomes && n(outcomes.runs) > 0
+        ? card(
+            "What your spend produced",
+            `${fmtCalls(outcomes.produced)} of ${fmtCalls(outcomes.runs)} runs produced something · ${money(outcomes.ledgerCostPerOutcomeUsd)} per outcome. The same figures an admin sees about you — you see them first.`,
+            outcomeStrip(outcomes),
+          )
+        : nothing
+    }
   </section>`;
 }
 
@@ -507,7 +557,10 @@ export async function renderUsage(): Promise<void> {
   }
   org = utb.status === "fulfilled" ? utb.value : null;
   leaderboard = board.status === "fulfilled" ? board.value : null;
-  allocations = allocs.status === "fulfilled" ? (allocs.value.allocations ?? null) : null;
+  // An employee without an admin grant gets 403 from the admin allocations endpoint;
+  // fall back to the ones their own meter reports, so they still see the caps that
+  // govern them rather than an empty panel.
+  allocations = allocs.status === "fulfilled" ? (allocs.value.allocations ?? null) : (usage?.allocations ?? null);
   receipts = receiptRows.status === "fulfilled" ? receiptRows.value : null;
   drawUsage();
 }
