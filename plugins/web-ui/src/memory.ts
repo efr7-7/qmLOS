@@ -40,7 +40,14 @@ interface ImportPreview {
 const IMPORT_MAX_BYTES = 32_000_000;
 
 function formatLabel(format: string): string {
-  return format === "claude-export" ? "Claude export" : "Markdown note";
+  if (format === "claude-export") return "Claude export";
+  if (format === "openai-export") return "ChatGPT export";
+  return "Markdown note";
+}
+
+/** Conversation exports are counted in conversations; a note is counted in lines. */
+function scannedUnit(format: string): string {
+  return format === "claude-export" || format === "openai-export" ? "conversations" : "lines";
 }
 
 export function resetMemoryState(): void {
@@ -152,7 +159,7 @@ function importPanel(): unknown {
         />
       </label>
       <span class="memory-hint"
-        >A Claude data export (conversations.json) or an Obsidian note (.md). Nothing is written until you
+        >A Claude or ChatGPT data export (conversations.json) or an Obsidian note (.md). Nothing is written until you
         confirm.</span
       >
     </div>
@@ -163,24 +170,25 @@ function importPanel(): unknown {
         ? html`<div class="memory-import-preview">
             <div class="card-meta">
               ${formatLabel(importPreview.format)} · ${importPreview.source} · scanned ${importPreview.scanned}
-              ${importPreview.format === "claude-export" ? "conversations" : "lines"} · ${importPreview.facts.length}
+              ${scannedUnit(importPreview.format)} · ${importPreview.facts.length}
               candidate facts
             </div>
             <div class="memory-import-facts">
               ${importPreview.facts.map(
-                (fact, i) => html`<label class="memory-import-fact">
-                  <input
-                    type="checkbox"
-                    data-focus-key=${`memory-import-fact-${i}`}
-                    .checked=${importPreview!.picked.has(i)}
-                    @change=${(e: Event) => {
+                (fact, i) =>
+                  html`<label class="memory-import-fact">
+                    <input
+                      type="checkbox"
+                      data-focus-key=${`memory-import-fact-${i}`}
+                      .checked=${importPreview!.picked.has(i)}
+                      @change=${(e: Event) => {
                       const on = (e.target as HTMLInputElement).checked;
                       if (on) importPreview!.picked.add(i);
                       else importPreview!.picked.delete(i);
                       drawMemory();
                     }}
-                  /><span>${fact}</span>
-                </label>`,
+                    /><span>${fact}</span>
+                  </label>`,
               )}
             </div>
             <div class="actions">
@@ -322,7 +330,11 @@ function drawMemory(loading = false): void {
                         )
                       : search
                         ? html`<div class="empty-state">No remembered facts match this search.</div>`
-                        : emptyPlayground("brain", "A fresh mind", "Nothing remembered yet. Say something worth keeping.")
+                        : emptyPlayground(
+                            "brain",
+                            "A fresh mind",
+                            "Nothing remembered yet. Say something worth keeping.",
+                          )
                   }
                 </div>`
         }

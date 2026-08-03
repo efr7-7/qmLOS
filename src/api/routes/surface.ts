@@ -26,6 +26,7 @@ import { renderAgentApis } from "../agent-api-catalog.ts";
 import { mintCapabilityToken, CAPABILITY_TTL_MS } from "../../auth/capability-token.ts";
 import { pipeToResponse, sendJson } from "../http.ts";
 import { audit, isObj, orgScope } from "./shared.ts";
+import { enrich, governingAllocations, outcomeSummary } from "./admin/governance.ts";
 import { type ApiCtx, type Route } from "./route.ts";
 import {
   ARTIFACT_TYPES,
@@ -367,6 +368,8 @@ async function getSelfUsage(ctx: ApiCtx): Promise<void> {
   const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : Date.now() - USAGE_DEFAULT_WINDOW_MS;
   const byModel = await deps.tokenLedger.summary("model", { since, principalId });
   const byPhase = await deps.tokenLedger.summary("phase", { since, principalId });
+  const byHarness = await deps.tokenLedger.summary("harness", { since, principalId }).catch(() => []);
+  const bySource = await deps.tokenLedger.summary("source", { since, principalId }).catch(() => []);
   const totalCostUsd = byPhase.reduce((sum, row) => sum + row.costUsd, 0);
   const totals = byPhase.reduce(
     (acc, row) => ({
@@ -378,6 +381,19 @@ async function getSelfUsage(ctx: ApiCtx): Promise<void> {
     { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   );
   const inputSide = totals.input + totals.cacheRead + totals.cacheWrite;
+
+  // Self-view parity: whatever an admin can see about this person's metered work, this
+  // person can see about themselves — including the outcome mix and cost-per-outcome
+  // ratio, and the budgets governing them. See docs/compliance.md.
+  const teamId = (await deps.teams?.teamOf(principalId).catch(() => null)) ?? null;
+  const ancestry = teamId ? ((await deps.teams?.ancestry(teamId).catch(() => [])) ?? []) : [];
+  const allTeams = (await deps.teams?.list().catch(() => [])) ?? [];
+  const teamNames = new Map(allTeams.map((team) => [team.id, team.name] as const));
+  const [outcomes, allocations] = await Promise.all([
+    outcomeSummary(deps, principalId, since, totalCostUsd),
+    governingAllocations(deps, principalId, ancestry, Date.now()),
+  ]);
+
   return sendJson(res, 200, {
     since,
     totalCostUsd,
@@ -385,6 +401,16 @@ async function getSelfUsage(ctx: ApiCtx): Promise<void> {
     cacheReadShare: inputSide > 0 ? totals.cacheRead / inputSide : null,
     byModel,
     byPhase,
+    breakdowns: {
+      byModel: byModel.map((row) => enrich(row)),
+      byPhase: byPhase.map((row) => enrich(row)),
+      byHarness: byHarness.map((row) => enrich(row)),
+      bySource: bySource.map((row) => enrich(row)),
+    },
+    outcomes,
+    team: teamId ? { id: teamId, name: teamNames.get(teamId) ?? teamId } : null,
+    teamAncestry: ancestry.map((id) => ({ id, name: teamNames.get(id) ?? id })),
+    allocations,
   });
 }
 
@@ -489,7 +515,12 @@ async function importSelfMemory(ctx: ApiCtx): Promise<void> {
       facts: parsed.facts,
     });
   }
-  const added = await deps.memory.capture(scope, tagImportedFacts(parsed.facts, parsed.source), Date.now(), principalId);
+  const added = await deps.memory.capture(
+    scope,
+    tagImportedFacts(parsed.facts, parsed.source),
+    Date.now(),
+    principalId,
+  );
   audit(deps, { principalId, action: "memory.self.import", resource: parsed.source, scopeLabel: scope });
   const head = await deps.memory.readHead?.(scope);
   return sendJson(res, 200, {

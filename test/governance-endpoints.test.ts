@@ -7,6 +7,7 @@ import { createMemoryRunOutcomeStore } from "../src/runs/run-outcome.ts";
 import { createAdminService } from "../src/admin/admin-service.ts";
 import { createAdminGrantStore, createMemoryAdminGrantPersistence } from "../src/admin/admin-grant-store.ts";
 import { adminRoutes } from "../src/api/routes/admin.ts";
+import { surfaceRoutes } from "../src/api/routes/surface.ts";
 import { membersVersion } from "../src/api/routes/admin/observability.ts";
 import { findRoute, type ApiCtx } from "../src/api/routes/route.ts";
 import type { DirectoryMember, DirectoryStore } from "../src/directory/directory-store.ts";
@@ -414,4 +415,62 @@ test("allocation writes validate subject and limit before they can govern anyone
     after.body.allocations.some((a: { id: string }) => a.id === "maya-daily"),
     false,
   );
+});
+
+/**
+ * docs/compliance.md tells works councils and DPOs that an employee sees "the same
+ * numbers any admin would see about them." That is a legally load-bearing claim, so it
+ * is asserted here rather than merely written down.
+ */
+async function callSurface(deps: ServerDeps, path: string): Promise<{ status: number; body: any }> {
+  const url = new URL(`http://core${path}`);
+  const found = findRoute(surfaceRoutes, "GET", url.pathname);
+  assert.ok(found, `no surface route for ${url.pathname}`);
+  let status = 0;
+  let payload: unknown = null;
+  const ctx = {
+    req: { headers: {} },
+    res: {
+      statusCode: 0,
+      writeHead(code: number) {
+        status = code;
+      },
+      end(raw?: string) {
+        if (raw) payload = JSON.parse(raw);
+      },
+    },
+    deps,
+    body: null,
+    url,
+    pathname: url.pathname,
+    method: "GET",
+    params: found!.params,
+  } as unknown as ApiCtx;
+  await found!.route.handle(ctx);
+  return { status, body: payload as any };
+}
+
+test("an employee's own meter shows the same metered numbers their admin sees about them", async () => {
+  const deps = await buildDeps();
+  const since = NOW - 30 * DAY;
+  const mine = await callSurface(deps, `/v1/usage?principalId=maya&since=${since}`);
+  const theirs = await call(deps, "GET", personPath("maya"));
+  assert.equal(mine.status, 200);
+  assert.equal(theirs.status, 200);
+
+  // The outcome mix and the cost-per-outcome efficiency ratio are the metrics a works
+  // council cares about most: the employee must not learn them second.
+  assert.deepEqual(mine.body.outcomes, theirs.body.outcomes, "outcome metrics match exactly");
+  assert.deepEqual(mine.body.allocations, theirs.body.allocations, "the budgets governing them match exactly");
+  assert.deepEqual(mine.body.team, theirs.body.team, "team attribution matches");
+  assert.equal(mine.body.totalCostUsd, theirs.body.totals.costUsd, "spend matches");
+  assert.ok(mine.body.outcomes.costPerOutcomeUsd !== undefined, "self-view carries the efficiency ratio");
+
+  for (const dimension of ["byModel", "byPhase", "byHarness", "bySource"]) {
+    assert.deepEqual(
+      mine.body.breakdowns[dimension],
+      theirs.body.breakdowns[dimension],
+      `${dimension} breakdown matches`,
+    );
+  }
 });

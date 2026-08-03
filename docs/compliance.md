@@ -14,19 +14,30 @@ external telemetry and discards everything else.
 ## Product defaults (worker-protective by design)
 
 - **Self-view first.** Every person can see their own complete meter
-  (`GET /v1/usage`) — the same numbers any admin would see about them.
-  Transparency to the data subject is the foundation of GDPR Art. 5(1)(a) and
-  Art. 88 workplace processing.
+  (`GET /v1/usage`) — the same metered numbers any admin sees about them, and no
+  admin surface derives a metric the person cannot see about themselves. That
+  covers spend, the model / phase / harness / source breakdowns, the outcome mix,
+  the cost-per-outcome ratio, and every allocation governing them. This is not a
+  policy statement: `test/governance-endpoints.test.ts` asserts the self-view and
+  the admin drill-down return identical values, so the guarantee fails the build
+  if it ever stops being true. Transparency to the data subject is the foundation
+  of GDPR Art. 5(1)(a) and Art. 88 workplace processing.
 - **Team-level ranking by default.** The leaderboard aggregates to teams unless
   the operator explicitly sets `UTB_LEADERBOARD=named`. Ranking identified
   individuals by productivity metrics is the configuration most likely to
   require works-council agreement (e.g. German BetrVG §87(1)(6) — technical
   systems capable of monitoring performance) and a DPIA; make that a conscious,
   documented decision, not a default.
-- **Individual drill-downs are admin-gated and audited.** Reading a person's
-  usage requires a scoped admin grant, and the read itself lands in the audit
-  log (`utb.read`, `utb.leaderboard.read`, `fleet.read`), so oversight is
-  itself overseen.
+- **Individual drill-downs are admin-gated, audited, and mirrored.** Reading a
+  person's usage requires a scoped admin grant, and the read itself lands in the
+  audit log (`utb.read`, `utb.leaderboard.read`, `fleet.read`, `receipts.read`),
+  so oversight is itself overseen. Be aware that the drill-down and the per-run
+  receipt do include productivity-shaped metrics — outcomes produced and
+  cost-per-outcome — which is precisely why the same values are exposed to the
+  employee's own meter. `UTB_LEADERBOARD=named` governs _cross-person ranking_,
+  not the existence of these per-person metrics; if your works-council agreement
+  turns on whether individual performance data exists at all, this is the section
+  to read to them.
 - **Shared-channel disclosure is blocked.** Per-principal spend endpoints are on
   the capability-token denial list for shared scopes — an agent cannot be
   tricked into posting someone's spend into a channel.

@@ -89,6 +89,47 @@ export interface GoverningAllocation {
   exceeded: boolean | null;
 }
 
+/**
+ * What a person produced for what they spent. Shared with the self-serve meter so an
+ * employee always sees the same outcome numbers their admin does — the transparency
+ * `docs/compliance.md` promises, kept true by construction rather than by memo.
+ */
+export async function outcomeSummary(
+  deps: ApiCtx["deps"],
+  principalId: string,
+  since: number,
+  ledgerCostUsd: number,
+): Promise<{
+  runs: number;
+  costUsd: number;
+  ledgerCostUsd: number;
+  costBasis: { costUsd: string; ledgerCostUsd: string };
+  byOutcome: Record<RunOutcomeKind, number>;
+  produced: number;
+  costPerOutcomeUsd: number | null;
+  ledgerCostPerOutcomeUsd: number | null;
+}> {
+  const records =
+    (await deps.runOutcomes?.list({ since, principalId, limit: OUTCOME_SCAN_LIMIT }).catch(() => [])) ?? [];
+  const byOutcome: Record<RunOutcomeKind, number> = { "code-pushed": 0, artifact: 0, "sent-internal": 0, chat: 0 };
+  let costUsd = 0;
+  for (const record of records) {
+    byOutcome[record.outcome] += 1;
+    costUsd += record.costUsd;
+  }
+  const produced = byOutcome["code-pushed"] + byOutcome.artifact + byOutcome["sent-internal"];
+  return {
+    runs: records.length,
+    costUsd,
+    ledgerCostUsd,
+    costBasis: { costUsd: "run-outcomes", ledgerCostUsd: "token-ledger" },
+    byOutcome,
+    produced,
+    costPerOutcomeUsd: produced > 0 ? costUsd / produced : null,
+    ledgerCostPerOutcomeUsd: produced > 0 ? ledgerCostUsd / produced : null,
+  };
+}
+
 export async function governingAllocations(
   deps: ApiCtx["deps"],
   principalId: string,
@@ -449,15 +490,7 @@ export async function utbPerson(ctx: ApiCtx): Promise<void> {
     return sendJson(res, 404, { error: "not_found", message: `no person ${principalId}` });
   }
 
-  const outcomeRecords =
-    (await deps.runOutcomes?.list({ since, principalId, limit: OUTCOME_SCAN_LIMIT }).catch(() => [])) ?? [];
-  const byOutcome: Record<RunOutcomeKind, number> = { "code-pushed": 0, artifact: 0, "sent-internal": 0, chat: 0 };
-  let outcomeCostUsd = 0;
-  for (const record of outcomeRecords) {
-    byOutcome[record.outcome] += 1;
-    outcomeCostUsd += record.costUsd;
-  }
-  const produced = byOutcome["code-pushed"] + byOutcome.artifact + byOutcome["sent-internal"];
+  const outcomes = await outcomeSummary(deps, principalId, since, totals.costUsd);
 
   return sendJson(res, 200, {
     since,
@@ -478,16 +511,7 @@ export async function utbPerson(ctx: ApiCtx): Promise<void> {
       byPhase: byPhase.map((row) => enrich(row)),
       bySource: bySource.map((row) => enrich(row)),
     },
-    outcomes: {
-      runs: outcomeRecords.length,
-      costUsd: outcomeCostUsd,
-      ledgerCostUsd: totals.costUsd,
-      costBasis: { costUsd: "run-outcomes", ledgerCostUsd: "token-ledger" },
-      byOutcome,
-      produced,
-      costPerOutcomeUsd: produced > 0 ? outcomeCostUsd / produced : null,
-      ledgerCostPerOutcomeUsd: produced > 0 ? totals.costUsd / produced : null,
-    },
+    outcomes,
     team: teamId ? { id: teamId, name: teamNames.get(teamId) ?? teamId } : null,
     teamAncestry: ancestry.map((id) => ({ id, name: teamNames.get(id) ?? id })),
     allocations,

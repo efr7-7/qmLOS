@@ -32,7 +32,16 @@ test("a Claude conversations.json export yields first-person facts", () => {
 });
 
 test("an Obsidian note yields its bullets, titled by the note", () => {
-  const note = ["# Working setup", "", "- I prefer tabs over spaces in Go", "```", "I am inside a code fence", "```", "## Links", "https://example.com"].join("\n");
+  const note = [
+    "# Working setup",
+    "",
+    "- I prefer tabs over spaces in Go",
+    "```",
+    "I am inside a code fence",
+    "```",
+    "## Links",
+    "https://example.com",
+  ].join("\n");
   const r = parseMemoryImport("Working setup.md", note);
   assert.equal(r.format, "markdown-note");
   assert.deepEqual(r.facts, ["Working setup: I prefer tabs over spaces in Go"]);
@@ -44,13 +53,88 @@ test("an unparsable upload explains itself instead of silently importing nothing
     (e: unknown) => e instanceof MemoryImportError && /not valid JSON/.test((e as Error).message),
   );
   assert.throws(
+    () => parseMemoryImport("export.json", JSON.stringify({ nothing: true })),
+    (e: unknown) => e instanceof MemoryImportError && /not a conversation export/.test((e as Error).message),
+  );
+  assert.throws(
     () => parseMemoryImport("export.json", JSON.stringify({ conversations: [] })),
-    (e: unknown) => e instanceof MemoryImportError && /not a Claude conversation export/.test((e as Error).message),
+    (e: unknown) => e instanceof MemoryImportError && /No conversations found/.test((e as Error).message),
   );
   assert.throws(
     () => parseMemoryImport("photo.png", "binary-ish"),
     (e: unknown) => e instanceof MemoryImportError && /not a supported import/.test((e as Error).message),
   );
+});
+
+/** ChatGPT hands you a reply *tree* under `mapping`, not a list — and calls the file conversations.json too. */
+function chatgptExport(parts: { role: string; at: number; parts: unknown[] }[]): string {
+  const mapping: Record<string, unknown> = { root: { id: "root", message: null, parent: null, children: [] } };
+  parts.forEach((p, i) => {
+    mapping[`n${i}`] = {
+      id: `n${i}`,
+      parent: i === 0 ? "root" : `n${i - 1}`,
+      children: [],
+      message: {
+        id: `m${i}`,
+        author: { role: p.role, name: null, metadata: {} },
+        create_time: p.at,
+        content: { content_type: "text", parts: p.parts },
+      },
+    };
+  });
+  return JSON.stringify([{ title: "Setup", create_time: 1, mapping }]);
+}
+
+test("a ChatGPT conversations.json export yields first-person facts from its message tree", () => {
+  const r = parseMemoryImport(
+    "conversations.json",
+    chatgptExport([
+      { role: "system", at: 1, parts: [""] },
+      { role: "user", at: 2, parts: ["I use Postgres for everything and I avoid ORMs."] },
+      { role: "assistant", at: 3, parts: ["Noted. I am a model and I prefer nothing."] },
+      { role: "user", at: 4, parts: [{ text: "My team ships on Fridays." }] },
+    ]),
+  );
+  assert.equal(r.format, "openai-export", "a ChatGPT export is not mistaken for a Claude one");
+  assert.equal(r.scanned, 1);
+  assert.ok(
+    r.facts.some((f) => f.includes("Postgres")),
+    "plain-string parts are read",
+  );
+  assert.ok(
+    r.facts.some((f) => f.includes("Fridays")),
+    "multimodal part objects are read too",
+  );
+  assert.ok(
+    !r.facts.some((f) => f.includes("I am a model")),
+    "the assistant's own first-person text is never captured as the user's fact",
+  );
+});
+
+test("ChatGPT messages are read in time order regardless of mapping key order", () => {
+  const r = parseMemoryImport(
+    "conversations.json",
+    chatgptExport([
+      { role: "user", at: 30, parts: ["My third preference is dark mode always."] },
+      { role: "user", at: 10, parts: ["My first preference is tabs over spaces."] },
+      { role: "user", at: 20, parts: ["My second preference is Neovim over VS Code."] },
+    ]),
+  );
+  assert.deepEqual(
+    r.facts.map((f) => f.match(/My (\w+) preference/)?.[1]),
+    ["first", "second", "third"],
+  );
+});
+
+test("a Claude export still parses once ChatGPT support exists, and neither claims the other", () => {
+  const claude = parseMemoryImport(
+    "conversations.json",
+    JSON.stringify([
+      { name: "x", chat_messages: [{ sender: "human", text: "I live in Dublin and I prefer trains." }] },
+    ]),
+  );
+  assert.equal(claude.format, "claude-export");
+  assert.ok(claude.facts.some((f) => f.includes("Dublin")));
 });
 
 test("an imported fact is captured as a sourced claim, not as the user's own assertion", async () => {
